@@ -30,6 +30,14 @@ export function runProgram(level, program) {
   let y = level.start.y;
   let collected = 0;
 
+  // 阿奇出发时脚下若压着骨头，也算吃到（和 solve() 的起点掩码保持一致）
+  for (const b of bones) {
+    if (b.x === x && b.y === y) {
+      b.got = true;
+      collected += 1;
+    }
+  }
+
   for (let i = 0; i < program.length; i++) {
     const move = MOVES[program[i]];
     if (!move) continue; // 未知指令防御：原地不动，不让程序崩掉

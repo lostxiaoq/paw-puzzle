@@ -3,22 +3,28 @@
    右边大圆色板按钮 + 「检查」按钮。
    颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏不横向滚动。 */
 
+/* 任务卡 013-2：整个「网格 + 工具栏」作为一组在 play-area 里居中，
+   色板和「检查」按钮紧贴网格（间距 24–40px），不再甩到屏幕最右边。 */
 .mirror-stage {
   height: 100%;
   min-height: 0;
   display: flex;
-  gap: 26px;
+  justify-content: center;
   align-items: stretch;
+  gap: clamp(24px, 3vw, 40px);
 }
 
-/* ============ 网格（画板） ============ */
+/* ============ 网格（画板） ============
+   任务卡 013-2：盒子按内容收缩（不抢剩余宽度），间隙才会
+   是 stage 的 24–40px；网格真正居中由 stage + 这两个 auto margin 完成。 */
 .mirror-board-box {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: auto 0;
   --cell: 64px; /* 兜底值，JS 会按可用空间重算 */
 }
 .mirror-wrap {
@@ -256,10 +262,12 @@
   }
 }
 
-/* ============ 操作区：色板 + 检查 ============ */
+/* ============ 操作区：色板 + 检查 ============
+   任务卡 013-2：工具栏不再抢 flex:1 的宽度，改按内容收缩，
+   这样 stage 居中时网格和工具栏才是一组贴在一起的整体。 */
 .mirror-side {
   flex: 0 0 auto;
-  width: clamp(220px, 26%, 320px);
+  width: clamp(200px, 24vw, 280px);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -332,11 +340,12 @@
 @media (max-width: 700px) {
   .mirror-stage {
     flex-direction: column;
+    align-items: center;
     gap: 14px;
   }
   .mirror-board-box {
     width: 100%;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-height: 0;
     --cell: 40px; /* 竖屏兜底，JS 会按宽度重算 */
   }

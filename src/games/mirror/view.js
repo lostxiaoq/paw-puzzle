@@ -228,15 +228,17 @@ export function mount(container, ctx) {
   // ———— 尺寸自适应：横屏左右分栏按可用空间算格子，竖屏占满宽度 ————
   function layout() {
     if (disposed) return;
-    const rect = boardBox.getBoundingClientRect();
+    // 任务卡 013-2：board-box 收缩为内容大小，空间要量整条 stage 的
+    const rect = stage.getBoundingClientRect();
     if (rect.width < 20 || rect.height < 20) return;
     let cell;
     if (window.innerWidth > 700) {
-      // 横屏：直接用棋盘盒的真实可用空间（stage 占满 play-area 后它是稳定的，
-      // 盒子是 flex 居中容器、不随格子大小变化，没有反馈循环）。
+      // 横屏：可用高 = stage 高；可用宽 = stage 宽 - 工具栏宽 - 间隙
+      // （stage 居中时，两侧 auto margin 就是留给工具栏 + 间隙的）
+      const gap = parseFloat(getComputedStyle(stage).columnGap) || 26;
       const axisPad = level.axis === 'horizontal' ? 40 : 0;
       const fromH = Math.floor((rect.height - (level.axis === 'vertical' ? 40 : 0)) / rows);
-      const fromW = Math.floor((rect.width - 16 - axisPad - (cols - 1) * GAP) / cols);
+      const fromW = Math.floor((rect.width - side.offsetWidth - gap - 16 - axisPad - (cols - 1) * GAP) / cols);
       cell = Math.max(30, Math.min(120, fromH, fromW));
     } else {
       // 竖屏：网格占满宽度（两侧各留 8px，横线镜子时天天从左边探进来另留 40px）

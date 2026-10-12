@@ -56,8 +56,34 @@ test('关卡分段符合任务卡要求（热身 / 绕路 / 收集骨头）', ()
     assert.ok(lv.cols >= 6 && lv.rows >= 6, `${lv.id} 收集关至少 6×6`);
     assert.ok(lv.bones.length >= 2 && lv.bones.length <= 3, `${lv.id} 收集关要 2–3 根骨头`);
     assert.ok(lv.walls.length > 0, `${lv.id} 收集关要有障碍`);
-    assert.ok(solve(lv).length >= 8 && solve(lv).length <= 14, `${lv.id} 收集关步数应在 8–14 步`);
+    assert.ok(solve(lv).length >= 8 && solve(lv).length <= 11, `${lv.id} 收集关步数应在 8–11 步`);
   });
+});
+
+// 任务卡 013-4：6 岁孩子一次排太多指令很吃力，所有关卡最短步数不得超过 11。
+test('所有关卡最短步数 ≤ 11', () => {
+  for (const lv of LEVELS) {
+    const sol = solve(lv);
+    assert.ok(sol, `${lv.id} 无解`);
+    assert.ok(
+      sol.length <= 11,
+      `${lv.id} 最短步数 ${sol.length} 超过 11`
+    );
+  }
+});
+
+// 任务卡 013-4：第 13、14 关的障碍要真的挡路——
+// 去掉全部障碍后的最短路径，必须比有障碍时至少短 2 步。
+test('第 13、14 关的障碍真的挡路（去掉障碍至少省 2 步）', () => {
+  for (const lv of [LEVELS[12], LEVELS[13]]) {
+    const withObs = solve(lv);
+    const withoutObs = solve({ ...lv, walls: [], bones: [] });
+    assert.ok(withObs && withoutObs, `${lv.id} 无解`);
+    assert.ok(
+      withObs.length - withoutObs.length >= 2,
+      `${lv.id} 障碍没挡路：有障碍 ${withObs.length} 步，无障碍 ${withoutObs.length} 步，只差 ${withObs.length - withoutObs.length} 步`
+    );
+  }
 });
 
 test('每关都有 theme 且取值合法', () => {
