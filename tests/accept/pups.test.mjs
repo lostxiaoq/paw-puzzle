@@ -49,6 +49,25 @@ test('每只狗形象不同', () => {
   assert.ok(s.size >= 4, '去掉颜色后至少要有 4 种不同造型（徽章/斑点等差异）');
 });
 
+// 浏览器遇到非法属性只会在控制台报错、把图形画成黑色，单看字符串发现不了，所以逐个属性检查
+const COLOR_OK = /^(none|transparent|currentColor|white|black|#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?([0-9a-fA-F]{2})?|rgba?\([\d.,\s%]+\)|url\(#[\w-]+\))$/;
+test('SVG 属性值合法（颜色、路径、数字）', () => {
+  for (const [id] of EXPECTED) {
+    for (const mood of ['normal', 'happy', 'thinking']) {
+      const svg = pupSVG(id, { mood });
+      for (const [, attr, val] of svg.matchAll(/\s([a-zA-Z-]+)="([^"]*)"/g)) {
+        const where = `${id}/${mood} ${attr}="${val.slice(0, 40)}"`;
+        assert.ok(!/undefined|NaN|null|\$\{/.test(val), `非法值 ${where}`);
+        if (attr === 'fill' || attr === 'stroke' || attr === 'stop-color') assert.match(val, COLOR_OK, `颜色非法 ${where}`);
+        if (attr === 'd') assert.match(val, /^[MmLlHhVvCcSsQqTtAaZz0-9.,\-+eE\s]+$/, `路径非法 ${where}`);
+        if (['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'stroke-width', 'opacity'].includes(attr)) {
+          assert.ok(Number.isFinite(Number(val)), `数字非法 ${where}`);
+        }
+      }
+    }
+  }
+});
+
 test('未知 id 抛错', () => {
   assert.throws(() => pupSVG('ryder'));
 });
