@@ -207,6 +207,35 @@ async function scenarioPlay(browser, base, game, all) {
   check(page.errors.length === 0, `没有 JS 错误${page.errors.length ? '：' + page.errors.slice(0, 5).join(' | ') : ''}`);
 }
 
+// 方向卡和指令槽里的箭头必须互不相同（自动测试按 testid 点击，箭头画错也能通关，所以单独查）
+async function scenarioRouteArrows(browser, base) {
+  console.log('[route-arrows]');
+  const page = await newPage(browser, base);
+  await go(page, '#/game/route/0');
+  await exists(page, 'card-up');
+  const look = (sel) => page.evaluate((s) => {
+    const el = document.querySelector(s);
+    if (!el) return null;
+    // 外观 = 去掉颜色后的内部结构 + 所有子元素的计算 transform
+    const parts = [el.innerHTML.replace(/#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|currentColor/g, '')];
+    for (const n of el.querySelectorAll('*')) parts.push(getComputedStyle(n).transform, n.getAttribute('transform') || '');
+    parts.push(getComputedStyle(el).transform);
+    return parts.join('|');
+  }, sel);
+  const dirs = ['up', 'down', 'left', 'right'];
+  const cards = await Promise.all(dirs.map((d) => look(tid(`card-${d}`))));
+  check(cards.every(Boolean) && new Set(cards).size === 4, '4 张方向卡的箭头朝向互不相同');
+  const slots = [];
+  for (const d of dirs) {
+    await page.click(tid(`card-${d}`));
+    await page.waitForTimeout(350);
+  }
+  for (let i = 0; i < 4; i++) slots.push(await look(tid(`slot-${i}`)));
+  check(slots.every(Boolean) && new Set(slots).size === 4, '指令槽里 4 个方向的箭头互不相同');
+  await shot(page, 'route-arrows');
+  check(page.errors.length === 0, `没有 JS 错误${page.errors.length ? '：' + page.errors.slice(0, 5).join(' | ') : ''}`);
+}
+
 const args = process.argv.slice(2);
 if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game>'); process.exit(2); }
 const srv = await serve();
@@ -215,6 +244,7 @@ const browser = await chromium.launch({ executablePath: CHROME });
 try {
   for (const a of args) {
     if (a === 'home') await scenarioHome(browser, base);
+    else if (a === 'route-arrows') await scenarioRouteArrows(browser, base);
     else if (a.startsWith('play:')) await scenarioPlay(browser, base, a.slice(5), false);
     else if (a.startsWith('playall:')) await scenarioPlay(browser, base, a.slice(8), true);
     else { console.error(`未知场景 ${a}`); failures.push(a); }
