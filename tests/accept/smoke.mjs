@@ -209,6 +209,14 @@ async function scenarioPlay(browser, base, game, all) {
     await page.waitForTimeout(400);
     await checkTargets(page, `${game} 游戏页`);
     await shot(page, `${game}-play`);
+    // 解锁全部关卡，才能截到最后一关的画面（否则会被跳回选关页）
+    await page.evaluate(([g, cnt]) => {
+      const d = JSON.parse(localStorage.getItem('paw-puzzle:v1') || '{}');
+      d[g] = { ...(d[g] || { stars: {} }), unlocked: cnt };
+      localStorage.setItem('paw-puzzle:v1', JSON.stringify(d));
+    }, [game, n]);
+    await page.reload(); // 应用启动时把进度读进内存，改完 localStorage 要刷新才生效
+    await page.waitForTimeout(500);
     await go(page, `#/game/${game}/${n - 1}`);
     await page.waitForTimeout(400);
     await shot(page, `${game}-last`);
@@ -245,8 +253,66 @@ async function scenarioRouteArrows(browser, base) {
   check(page.errors.length === 0, `没有 JS 错误${page.errors.length ? '：' + page.errors.slice(0, 5).join(' | ') : ''}`);
 }
 
+// 徽章墙 / 首页星数 / 护眼提醒（任务卡 011）
+async function scenarioBadges(browser, base) {
+  console.log('[badges]');
+  const page = await newPage(browser, base);
+  const stars = (n, s) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i, s]));
+  const setData = (d) => page.evaluate((x) => localStorage.setItem('paw-puzzle:v1', JSON.stringify(x)), d);
+  // route 5 关×3 星，其余各 1 关 → 共 15+2+1+3 = 21 星
+  await setData({
+    route: { unlocked: 6, stars: stars(5, 3) },
+    mirror: { unlocked: 2, stars: { 0: 2 } },
+    rotate: { unlocked: 2, stars: { 0: 1 } },
+    cubes: { unlocked: 2, stars: { 0: 3 } },
+  });
+  await page.reload();
+  await page.waitForTimeout(500);
+  const attr = (id, a) => page.locator(tid(id)).getAttribute(a).catch(() => null);
+  check((await attr('game-tile-route', 'data-stars')) === '15', '首页阿奇巡逻卡片 data-stars="15"');
+  check((await attr('game-tile-mirror', 'data-stars')) === '2', '首页魔镜卡片 data-stars="2"');
+  await page.click(tid('btn-badges'));
+  await page.waitForTimeout(500);
+  check((await page.evaluate(() => location.hash)) === '#/badges', '点 btn-badges 进入徽章墙');
+  const earned = async (pup) => attr(`badge-${pup}`, 'data-earned');
+  check((await earned('chase')) === 'true', '阿奇徽章已获得（巡逻过 5 关）');
+  check((await earned('skye')) === 'false', '天天徽章未获得（魔镜只过 1 关）');
+  check((await earned('zuma')) === 'true', '路马徽章已获得（四个游戏都至少过 1 关）');
+  check((await earned('marshall')) === 'false', '毛毛徽章未获得（21 星 < 30）');
+  const total = await page.locator(tid('total-stars')).textContent().catch(() => '');
+  check(/21/.test(total || ''), `徽章墙显示总星数 21（实际「${(total || '').trim()}」）`);
+  await shot(page, 'badges-partial');
+
+  await setData({
+    route: { unlocked: 6, stars: stars(5, 3) },
+    mirror: { unlocked: 2, stars: { 0: 2 } },
+    rotate: { unlocked: 6, stars: stars(5, 3) },
+    cubes: { unlocked: 2, stars: { 0: 3 } },
+  });
+  await page.reload();
+  await page.waitForTimeout(500);
+  check((await earned('rocky')) === 'true', '灰灰徽章已获得（零件过 5 关）');
+  check((await earned('marshall')) === 'true', '毛毛徽章已获得（35 星 ≥ 30）');
+  for (const p of ['chase', 'marshall', 'skye', 'rubble', 'rocky', 'zuma']) check(await exists(page, `badge-${p}`, 1000), `徽章墙有 badge-${p}`);
+  await checkTargets(page, '徽章墙');
+  await shot(page, 'badges-more');
+
+  // 护眼提醒：?break=<秒> 缩短计时，用于测试
+  const p2 = await newPage(browser, base);
+  await p2.goto(base + '/?break=2#/game/route/0');
+  await p2.waitForTimeout(800);
+  check(!(await p2.locator(tid('break-overlay')).isVisible().catch(() => false)), '刚开始没有护眼提醒');
+  check(await exists(p2, 'break-overlay', 6000), '到时间后弹出护眼提醒 break-overlay');
+  await shot(p2, 'break');
+  check(await exists(p2, 'btn-break-ok', 1000), '护眼提醒有 btn-break-ok');
+  await p2.click(tid('btn-break-ok'));
+  await p2.waitForTimeout(600);
+  check(!(await p2.locator(tid('break-overlay')).isVisible().catch(() => false)), '点 btn-break-ok 后提醒关闭');
+  check(page.errors.length === 0 && p2.errors.length === 0, `没有 JS 错误${page.errors.length + p2.errors.length ? '：' + [...page.errors, ...p2.errors].slice(0, 5).join(' | ') : ''}`);
+}
+
 const args = process.argv.slice(2);
-if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game>'); process.exit(2); }
+if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game> | route-arrows | badges'); process.exit(2); }
 const srv = await serve();
 const base = `http://127.0.0.1:${srv.address().port}`;
 const browser = await chromium.launch({ executablePath: CHROME });
@@ -254,6 +320,7 @@ try {
   for (const a of args) {
     if (a === 'home') await scenarioHome(browser, base);
     else if (a === 'route-arrows') await scenarioRouteArrows(browser, base);
+    else if (a === 'badges') await scenarioBadges(browser, base);
     else if (a.startsWith('play:')) await scenarioPlay(browser, base, a.slice(5), false);
     else if (a.startsWith('playall:')) await scenarioPlay(browser, base, a.slice(8), true);
     else { console.error(`未知场景 ${a}`); failures.push(a); }
