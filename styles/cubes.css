@@ -132,9 +132,8 @@
 .cubes-choice:active {
   transform: scale(0.93);
 }
-.cubes-choice[data-answer='true'] {
-  border-color: rgba(58, 157, 74, 0.28);
-}
+/* 注意：选项按钮外观必须完全一致 —— data-answer 只是给自动测试用的标记，
+   任何样式（边框、背景、动画等）都不允许依赖它，否则孩子一眼就能看出答案。 */
 
 /* 数一数的数字按钮：超大数字 */
 .cubes-num {
