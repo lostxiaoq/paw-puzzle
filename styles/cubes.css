@@ -1,0 +1,203 @@
+/* 小砾搭积木：游戏界面样式（任务卡 010）。
+   上面是等轴测积木堆 + 小砾和「前面」箭头，
+   下面是 3 个大选项（数字按钮或方格图卡片）。
+   颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏不横向滚动。 */
+
+.cubes-stage {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-evenly;
+}
+
+/* ============ 积木堆舞台 ============ */
+.cubes-board {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+.cubes-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 56vh;
+  display: block;
+}
+
+/* 地板：浅暖色，网格线比地板深一点 */
+.cubes-svg .floor {
+  fill: #fdf6e0;
+  stroke: #eddbad;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.cubes-svg .floor-line {
+  stroke: #eddbad;
+  stroke-width: 1.5;
+}
+
+/* 每块积木：三个可见面 + 深色细边；「拆开」提示时整块带弹性地上浮 */
+.cubes-svg .cube {
+  transition: transform 0.42s cubic-bezier(0.34, 1.3, 0.5, 1);
+  will-change: transform;
+}
+.cubes-svg .cube polygon {
+  stroke-linejoin: round;
+}
+
+/* 轮廓（从前面看）：默认淡虚线；.is-on 时亮出黄色半透明墙 */
+.front-outline polygon {
+  fill: rgba(246, 194, 11, 0);
+  stroke: #b98a00;
+  stroke-width: 2.5;
+  stroke-dasharray: 7 5;
+  opacity: 0.5;
+  transition: opacity 0.3s ease, fill 0.3s ease;
+}
+.front-outline.is-on polygon {
+  fill: rgba(246, 194, 11, 0.55);
+  stroke: #f6c20b;
+  stroke-dasharray: none;
+  opacity: 0.95;
+}
+
+/* ============ 小砾 + 「前面」标签 ============ */
+.cubes-front-tag {
+  position: absolute;
+  bottom: 6px;
+  left: calc(50% - 118px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid #f6c20b;
+  border-radius: 999px;
+  padding: 4px 12px 4px 4px;
+  box-shadow: 0 3px 10px rgba(93, 82, 140, 0.14);
+  font-size: 16px;
+  font-weight: 700;
+  color: #a16207;
+  white-space: nowrap;
+  z-index: 2;
+}
+/* 箭头默认指向右下，水平翻转后指向左上（积木堆方向） */
+.cubes-front-tag svg {
+  width: 26px;
+  height: 26px;
+  transform: scaleX(-1);
+}
+.cubes-pup {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% + 28px);
+  width: 72px;
+  height: 72px;
+  z-index: 2;
+}
+.cubes-pup svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 6px rgba(93, 82, 140, 0.18));
+}
+
+/* ============ 下方 3 个大选项 ============ */
+.cubes-choices {
+  flex: none;
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.cubes-choice {
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 118px;
+  min-height: 96px;
+  padding: 10px 18px;
+  border: 4px solid rgba(146, 98, 16, 0.16);
+  border-radius: 22px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 6px 16px rgba(93, 82, 140, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.3s ease;
+  touch-action: manipulation;
+}
+.cubes-choice:active {
+  transform: scale(0.93);
+}
+.cubes-choice[data-answer='true'] {
+  border-color: rgba(58, 157, 74, 0.28);
+}
+
+/* 数一数的数字按钮：超大数字 */
+.cubes-num {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #a16207;
+}
+
+/* 方格图选项 */
+.cubes-front-svg {
+  width: 96px;
+  height: 96px;
+  display: block;
+}
+
+/* 点错的：变灰、不能再点（只鼓励不惩罚，不画红叉） */
+.cubes-choice.is-dim {
+  opacity: 0.38;
+  filter: grayscale(0.9);
+  pointer-events: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* 点对的：欢呼弹跳 */
+.cubes-choice.is-win {
+  animation: cubesWin 0.5s ease;
+  background: linear-gradient(180deg, #fff8dd, #ffefb0);
+  border-color: #f6c20b;
+}
+@keyframes cubesWin {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* ============ 手机竖屏 ============ */
+@media (max-width: 700px) {
+  .cubes-choices {
+    gap: 12px;
+    width: 100%;
+  }
+  .cubes-choice {
+    min-width: 0;
+    flex: 1 1 0;
+    min-height: 84px;
+    padding: 8px 10px;
+  }
+  .cubes-num {
+    font-size: 44px;
+  }
+  .cubes-front-svg {
+    width: 84px;
+    height: 84px;
+  }
+  .cubes-pup {
+    width: 58px;
+    height: 58px;
+    left: calc(50% + 14px);
+  }
+  .cubes-front-tag {
+    left: calc(50% - 96px);
+    font-size: 14px;
+  }
+}
