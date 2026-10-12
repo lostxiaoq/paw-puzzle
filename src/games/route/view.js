@@ -28,9 +28,16 @@ export function firstWrongIndex(program, solution) {
 
 // ———— 界面里的小图形，全部现画的 SVG，没有任何图片文件 ————
 
-// 方向大箭头（fill 用 currentColor，颜色写在 CSS 里：一个方向固定一种颜色）
-function arrowSVG() {
-  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 21 13.4h-5.2v7.2H8.2v-7.2H3Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+// 方向大箭头：按 dir 画出朝上 / 下 / 左 / 右的箭头。
+// 基础形状是朝上的箭头，其余方向靠 SVG transform 旋转出来；
+// fill 用 currentColor，颜色写在 CSS 里：一个方向固定一种颜色。
+const ARROW_TURN = { up: 0, down: 180, left: -90, right: 90 };
+export function arrowSVG(dir) {
+  const path = '<path d="M12 2.6 21 13.4h-5.2v7.2H8.2v-7.2H3Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>';
+  const turn = ARROW_TURN[dir] || 0;
+  return turn
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(${turn} 12 12)">${path}</g></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
 }
 
 // 树（障碍）
@@ -197,6 +204,13 @@ export function mount(container, ctx) {
   // 阿奇：外层管位移（平滑走路），内层管抖动等小动画，互不打架
   const pup = el(`<div class="route-pup"><div class="route-pup-in">${pupSVG('chase', { size: 120 })}</div></div>`);
   const pupIn = pup.firstElementChild;
+  // 朝向：往左走水平翻转（面朝左），往右走恢复，上下走保持当前朝向
+  let facing = 1; // 1 = 面朝右，-1 = 面朝左
+  function setFacing(dir) {
+    if (dir === 'left') facing = -1;
+    else if (dir === 'right') facing = 1;
+    pupIn.style.transform = facing < 0 ? 'scaleX(-1)' : '';
+  }
   const pupXY = (x, y) =>
     `translate(calc(var(--cell) * ${(x + 0.06).toFixed(3)}), calc(var(--cell) * ${(y + 0.1).toFixed(3)}))`;
   pup.style.transform = pupXY(lastX, lastY); // 先摆好再上屏，避免从角落滑过来
@@ -225,7 +239,7 @@ export function mount(container, ctx) {
   const dpad = el('<div class="route-dpad" role="group" aria-label="方向卡片"></div>');
   for (const d of DIRS) {
     const b = el(
-      `<button class="route-dir ${d.cls}" data-testid="card-${d.dir}" aria-label="${d.label}" style="grid-area:${d.area}">${arrowSVG()}</button>`,
+      `<button class="route-dir ${d.cls}" data-testid="card-${d.dir}" aria-label="${d.label}" style="grid-area:${d.area}">${arrowSVG(d.dir)}</button>`,
     );
     b.addEventListener('click', () => addCard(d.dir, b));
     dpad.appendChild(b);
@@ -267,7 +281,7 @@ export function mount(container, ctx) {
   function renderSlots() {
     program.forEach((d, i) => {
       slotEls[i].className = `route-slot is-filled ${SLOT_CLS[d] || ''}${i === failedIndex ? ' is-fail' : ''}`;
-      slotEls[i].innerHTML = arrowSVG();
+      slotEls[i].innerHTML = arrowSVG(d);
     });
     for (let i = program.length; i < slotEls.length; i++) {
       slotEls[i].className = `route-slot${i === failedIndex ? ' is-fail' : ''}`;
@@ -334,6 +348,7 @@ export function mount(container, ctx) {
   // 撞墙/出界前的小前冲：朝那个方向顶一下再弹回来
   const BUMP = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   async function bump(dir) {
+    setFacing(dir); // 撞哪儿就先面朝哪儿
     const d = BUMP[dir] || [0, 0];
     const from = pup.style.transform;
     const hit = pupXY(lastX + d[0] * 0.3, lastY + d[1] * 0.3);
@@ -373,6 +388,7 @@ export function mount(container, ctx) {
     for (let i = 1; i < res.path.length; i++) {
       if (disposed) return;
       const c = res.path[i];
+      setFacing(program[i - 1]); // 先转身再迈步
       setPup(c.x, c.y);
       ctx.sfx('step');
       await sleep(350); // 每步约 350ms
@@ -458,14 +474,18 @@ export function mount(container, ctx) {
   }
   ctx.onHint(showHint);
 
-  // ———— 尺寸自适应：横屏左右分栏按高度算，竖屏地图占满宽度 ————
+  // ———— 尺寸自适应：按地图盒的真实大小放大格子（任务 007b） ————
+  // 横屏：地图盒是 flex 撑开的整块区域；竖屏：吃掉操作区之外的剩余高度。
+  // 格子保持正方形，单格最大 120px；下限 40 只是窄屏兜底。
   function layout() {
     if (disposed) return;
     const rect = mapBox.getBoundingClientRect();
-    if (rect.width < 20) return;
-    const availH = Math.max(window.innerHeight - rect.top - 18, 200);
-    let cell = Math.floor(Math.min(rect.width / level.cols, availH / level.rows));
-    cell = Math.max(40, Math.min(108, cell)); // 7×7 在 1024×768 下约 80px，远超 60px
+    if (rect.width < 20 || rect.height < 20) return;
+    const cs = getComputedStyle(mapBox);
+    const availW = rect.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = rect.height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    let cell = Math.floor(Math.min(availW / level.cols, availH / level.rows));
+    cell = Math.max(40, Math.min(120, cell));
     wrap.style.setProperty('--cell', `${cell}px`);
   }
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(layout) : null;
