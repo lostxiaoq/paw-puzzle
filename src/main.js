@@ -9,6 +9,13 @@ import { say } from './core/speech.js';
 import { play } from './core/sfx.js';
 import { PUPS, pupSVG } from './art/pups.js';
 import { GAMES } from './games/registry.js';
+import {
+  earnedBadges,
+  totalStarsOf,
+  BADGE_HINTS,
+  BADGE_THANKS,
+  GAME_BADGES,
+} from './badges.js';
 
 const store = createStore();
 
@@ -18,7 +25,6 @@ function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
-const stars = (n) => '⭐'.repeat(n);
 
 // 每只狗狗主页面的浅色底（主色的淡色版，卡片 / 徽章墙用）
 const PUP_TINT = {
@@ -79,10 +85,10 @@ function renderHome() {
   for (const g of GAMES) {
     const gained = Object.values(store.getProgress(g.id).stars).reduce((a, b) => a + b, 0);
     const tile = el(`
-      <button class="tile" data-testid="game-tile-${g.id}" data-hash="${toHash({ name: 'levels', gameId: g.id })}" style="background:${tintOf(g.pup)}">
+      <button class="tile" data-testid="game-tile-${g.id}" data-hash="${toHash({ name: 'levels', gameId: g.id })}" style="background:${tintOf(g.pup)}" data-stars="${gained}">
         <span class="tile-pup"></span>
         <span class="tile-title">${g.title}</span>
-        <span class="tile-stars">${gained > 0 ? stars(gained) : '还没玩过'}</span>
+        <span class="tile-stars">${gained > 0 ? `⭐ ${gained}` : '还没玩过'}</span>
       </button>
     `);
     tile.querySelector('.tile-pup').innerHTML = pupSVG(g.pup, { size: 96 });
@@ -195,6 +201,7 @@ async function renderPlay(game, levelIndex) {
       <div class="success-card">
         <div class="success-pup"></div>
         <div class="success-stars"></div>
+        <div class="success-badges" hidden></div>
         <button class="btn btn-big" data-testid="btn-next">下一关 ▶</button>
       </div>
     </div>
@@ -208,6 +215,15 @@ async function renderPlay(game, levelIndex) {
   let hintFn = null;
   let finished = false;
   const viewUnmount = { fn: null };
+
+  // 过关前的进度快照（判断「刚解锁的徽章」用）
+  const progressBefore = {};
+  for (const g of GAMES) progressBefore[g.id] = store.getProgress(g.id);
+  const progressAfter = () => {
+    const now = {};
+    for (const g of GAMES) now[g.id] = store.getProgress(g.id);
+    return now;
+  };
 
   const ctx = {
     gameId: game.id,
@@ -281,6 +297,34 @@ async function renderPlay(game, levelIndex) {
     }
     overlay.hidden = false;
 
+    // 刚解锁的新徽章：弹层里额外展示「获得新徽章！」+ 狗狗
+    let fresh = [];
+    try {
+      const before = earnedBadges(progressBefore);
+      const after = earnedBadges(progressAfter());
+      fresh = PUPS.filter((p) => after[p.id] && !before[p.id]);
+    } catch (e) {
+      console.warn('徽章比较出错（忽略）', e);
+    }
+    const badgeBox = overlay.querySelector('.success-badges');
+    for (const p of fresh) {
+      const item = el(`
+        <div class="success-badge">
+          <span class="success-badge-pup"></span>
+          <span class="success-badge-text">获得新徽章！${p.name}</span>
+        </div>
+      `);
+      item.querySelector('.success-badge-pup').innerHTML = pupSVG(p.id, { size: 72, mood: 'happy' });
+      badgeBox.appendChild(item);
+    }
+    if (fresh.length) {
+      badgeBox.hidden = false;
+      // 等星星动画播完再报喜，不盖住星星音效
+      setTimeout(() => {
+        say(`获得新徽章！${fresh.map((p) => p.name).join('和')}向你祝贺！`);
+      }, 400 + earnedStars * 450 + 200);
+    }
+
     // 最后一关：按钮改成回选关页
     const isLast = levelIndex >= game.levelCount - 1;
     const nextBtn = overlay.querySelector('[data-testid="btn-next"]');
@@ -324,16 +368,20 @@ async function renderPlay(game, levelIndex) {
   ctx.setInstruction(`第 ${levelIndex + 1} 关开始啦！`);
 }
 
-// ============ 徽章墙（简单版，详细功能后续任务做） ============
+// ============ 徽章墙（任务卡 011） ============
 function renderBadges() {
-  const total = store.totalStars();
+  // 汇总进度：{ route: {unlocked, stars}, ... } → 徽章获得情况
+  const progressByGame = {};
+  for (const g of GAMES) progressByGame[g.id] = store.getProgress(g.id);
+  const earned = earnedBadges(progressByGame);
+  const total = totalStarsOf(progressByGame);
   const page = el(`<div class="page page-badges"></div>`);
 
   const head = el(`
     <header class="badges-head">
       <button class="btn btn-round" data-testid="btn-back-home" title="返回首页" aria-label="返回首页">🏠</button>
       <h1 class="badges-title">我的徽章墙</h1>
-      <div class="badges-total">总共 <b>${total}</b> 颗 ⭐</div>
+      <div class="badges-total" data-testid="total-stars">⭐ ${total}</div>
     </header>
   `);
   head.querySelector('[data-testid="btn-back-home"]').addEventListener('click', () => {
@@ -342,16 +390,31 @@ function renderBadges() {
   });
   page.appendChild(head);
 
-  // 6 只狗狗排成一排
+  // 6 只狗狗排成一排；获得的彩色 + 光圈，没获得的灰色剪影 + 小锁 + 提示
   const row = el(`<div class="badges-row"></div>`);
   for (const pup of PUPS) {
+    const isEarned = !!earned[pup.id];
+    const hint = BADGE_HINTS[pup.id] || '';
     const card = el(`
-      <div class="badge-card" style="background:${tintOf(pup.id)}">
-        <div class="badge-pup"></div>
-        <div class="badge-name">${pup.name}</div>
-      </div>
+      <button class="badge-card ${isEarned ? 'is-earned' : 'is-locked'}"
+        data-testid="badge-${pup.id}"
+        data-earned="${isEarned}"
+        style="background:${tintOf(pup.id)}"
+        title="${hint}">
+        <span class="badge-pup"></span>
+        <span class="badge-lock" aria-hidden="true">🔒</span>
+        <span class="badge-name">${pup.name}</span>
+        <span class="badge-hint">${hint}</span>
+      </button>
     `);
-    card.querySelector('.badge-pup').innerHTML = pupSVG(pup.id, { size: 90 });
+    card
+      .querySelector('.badge-pup')
+      .innerHTML = pupSVG(pup.id, { size: 90, mood: isEarned ? 'happy' : 'normal' });
+    // 点徽章：已获得 → 狗狗道谢；还没获得 → 读提示
+    card.addEventListener('click', () => {
+      play('tap');
+      say(isEarned ? BADGE_THANKS[pup.id] || `${pup.name}向你道谢！` : hint);
+    });
     row.appendChild(card);
   }
   page.appendChild(row);
@@ -359,6 +422,74 @@ function renderBadges() {
   setView(page);
   say(`这是你的徽章墙！你已经有 ${total} 颗星星啦。`);
 }
+
+// ============ 护眼提醒（任务卡 011） ============
+// 连续使用 20 分钟弹全屏提醒；页面切到后台（visibilityState !== 'visible'）暂停计时。
+// 测试可用 URL 查询串 ?break=<秒> 把 20 分钟换成指定秒数。
+
+// 从 URL 读测试参数：/?break=2 → 2 秒；没有参数 → 默认 20 分钟
+const BREAK_SECONDS = (() => {
+  let seconds = 20 * 60;
+  try {
+    const raw = new URLSearchParams(window.location.search).get('break');
+    if (raw !== null) {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) seconds = n;
+    }
+  } catch {
+    /* 解析不了就用默认值 */
+  }
+  return seconds;
+})();
+
+// 护眼弹层常驻 body（不属于任何页面，路由切换时不会被清掉）
+const breakOverlay = el(`
+  <div class="break-overlay" data-testid="break-overlay" hidden>
+    <div class="break-card">
+      <div class="break-pup"></div>
+      <div class="break-zzz" aria-hidden="true">Z z z…</div>
+      <p class="break-text">玩了好久啦，休息一下眼睛，看看远处吧！</p>
+      <button class="btn btn-big" data-testid="btn-break-ok">我休息好了</button>
+    </div>
+  </div>
+`);
+breakOverlay.querySelector('.break-pup').innerHTML = pupSVG('marshall', { size: 150, mood: 'thinking' });
+document.body.appendChild(breakOverlay);
+
+// 关闭提醒 → 隐藏并重新计时
+breakOverlay.querySelector('[data-testid="btn-break-ok"]').addEventListener('click', () => {
+  play('tap');
+  breakOverlay.hidden = true;
+  say('休息好啦，我们继续冒险吧！');
+  resetBreakTimer();
+});
+
+let breakTimerId = null;
+function resetBreakTimer() {
+  // 旧的定时器先撤掉（重复调用安全）
+  if (breakTimerId !== null) {
+    clearTimeout(breakTimerId);
+    breakTimerId = null;
+  }
+  if (BREAK_SECONDS <= 0) return; // break=0 表示关掉提醒（调试用）
+  breakTimerId = setTimeout(() => {
+    breakTimerId = null;
+    if (document.visibilityState !== 'visible') {
+      // 后台里时间到了：等回到前台再重新计满
+      resetBreakTimer();
+      return;
+    }
+    breakOverlay.hidden = false;
+    say('玩了好久啦，休息一下眼睛，看看远处吧！');
+  }, BREAK_SECONDS * 1000);
+}
+
+// 页面切到后台暂停计时，回来重新计（符合「可见时才计时」）
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') resetBreakTimer();
+});
+
+resetBreakTimer();
 
 // ============ 路由分发 ============
 function navigate(route) {
