@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>狗狗形象预览 — 6 只小狗 × 3 种表情</title>
+<style>
+  /* 供人工审查画风用，不属于验收测试 */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #fff4e0 0%, #ffe9f2 50%, #e3f4ff 100%);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1 { text-align: center; color: #7a4b8f; font-size: 28px; margin-bottom: 20px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .card {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 16px;
+    box-shadow: 0 6px 18px rgba(122, 75, 143, 0.12);
+    text-align: center;
+  }
+  .card h2 { font-size: 20px; margin-bottom: 4px; }
+  .card .role { font-size: 14px; color: #9b8aa5; margin-bottom: 10px; }
+  .moods { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .moods figure { width: 96px; }
+  .moods figcaption { font-size: 12px; color: #8d8d8d; margin-top: 4px; }
+  .error {
+    max-width: 600px; margin: 40px auto; background: #fff0f0;
+    border: 2px solid #d62828; border-radius: 16px; padding: 20px;
+    color: #a91f1f; font-size: 16px; line-height: 1.6; display: none;
+  }
+</style>
+</head>
+<body>
+  <h1>🐶 汪汪队形象审查表</h1>
+  <div class="error" id="err">
+    加载失败啦：请在本仓库根目录运行 <code>npm run serve</code>，
+    然后打开 <code>http://localhost:8765/tests/unit/pups-preview.html</code>
+  </div>
+  <div class="grid" id="grid"></div>
+  <script type="module">
+    try {
+      const { PUPS, pupSVG } = await import('../../src/art/pups.js');
+      const MOODS = [
+        ['normal', '平常'],
+        ['happy', '开心'],
+        ['thinking', '想问题'],
+      ];
+      const grid = document.getElementById('grid');
+      grid.innerHTML = PUPS.map((p) => `
+        <section class="card" style="border-top: 8px solid ${p.color}">
+          <h2 style="color: ${p.color}">${p.name}</h2>
+          <div class="role">${p.role} · ${p.id}</div>
+          <div class="moods">
+            ${MOODS.map(([mood, label]) => `
+              <figure>
+                <div style="width: 96px; height: 96px; margin: 0 auto">
+                  ${pupSVG(p.id, { size: 96, mood })}
+                </div>
+                <figcaption>${label}</figcaption>
+              </figure>`).join('')}
+          </div>
+        </section>`).join('');
+    } catch (e) {
+      document.getElementById('err').style.display = 'block';
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
