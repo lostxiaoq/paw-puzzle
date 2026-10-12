@@ -167,10 +167,30 @@ const SOLVERS = {
   },
 };
 
+// 正确选项的外观不能和错误选项有任何区别（data-answer 只给自动测试用，孩子不能看出来）
+async function answerLeak(page) {
+  return page.evaluate(() => {
+    const opts = [...document.querySelectorAll('[data-testid^="choice-"]')];
+    const right = opts.find((o) => o.dataset.answer === 'true');
+    if (!right || opts.length < 2) return [];
+    const PROPS = ['border-color', 'border-width', 'border-style', 'background-color', 'background-image', 'box-shadow',
+      'outline-color', 'outline-style', 'color', 'opacity', 'filter', 'transform', 'font-weight'];
+    const sig = (el) => { const cs = getComputedStyle(el); return Object.fromEntries(PROPS.map((k) => [k, cs.getPropertyValue(k)])); };
+    const r = sig(right);
+    const diff = new Set();
+    for (const o of opts) if (o !== right) { const w = sig(o); for (const k of PROPS) if (w[k] !== r[k]) diff.add(k); }
+    return [...diff];
+  });
+}
+
 async function playLevel(page, game, idx) {
   await go(page, `#/game/${game}/${idx}`);
   if (!(await exists(page, 'play-area'))) return false;
   await page.waitForTimeout(300);
+  await page.mouse.move(1, 1); // 上一关点完鼠标还停在选项位置，移开并等悬停过渡收回，避免误报
+  await page.waitForTimeout(500);
+  const leak = await answerLeak(page);
+  check(leak.length === 0, `${game} 第 ${idx + 1} 关正确选项外观与其他选项一致${leak.length ? '（泄露：' + leak.join(', ') + '）' : ''}`);
   try { await SOLVERS[game](page, idx); } catch (e) { console.log(`    自动操作失败：${e.message.split('\n')[0]}`); return false; }
   return exists(page, 'success-overlay', 20000);
 }
