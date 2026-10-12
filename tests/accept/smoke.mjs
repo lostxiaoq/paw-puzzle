@@ -186,6 +186,15 @@ async function scenarioPlay(browser, base, game, all) {
     check(ok, `${game} 第 ${i + 1} 关能通关并出现 success-overlay`);
     if (!ok) { await shot(page, `${game}-fail-${i}`); break; }
     if (i === 0) {
+      await page.waitForTimeout(1500); // 等弹层动画播完再截图和检查遮挡
+      const clickable = await page.evaluate(() => {
+        const b = document.querySelector('[data-testid="btn-next"]');
+        if (!b) return false;
+        const r = b.getBoundingClientRect();
+        const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return !!(e && e.closest('[data-testid="btn-next"]'));
+      });
+      check(clickable, `${game} 过关弹层的 btn-next 在最上层、能点到`);
       await shot(page, `${game}-success`);
       const saved = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem('paw-puzzle:v1')); } catch { return null; } });
       check(saved && saved[game] && saved[game].stars && saved[game].stars[0] >= 1, `${game} 第 1 关星数已写入 localStorage`);
