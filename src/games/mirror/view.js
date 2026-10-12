@@ -229,24 +229,21 @@ export function mount(container, ctx) {
   function layout() {
     if (disposed) return;
     const rect = boardBox.getBoundingClientRect();
-    if (rect.width < 20) return;
+    if (rect.width < 20 || rect.height < 20) return;
     let cell;
     if (window.innerWidth > 700) {
-      // 横屏：高度预算 = 视口高度 − 页面固定开销 − 预留。
-      // 开销是常数（页顶边距 + 顶栏 + play-area 内边距 + 天线 40px + 页底边距），
-      // 故意不读布局 rect——「格子撑大容器、容器又反过来算格子」会形成反馈循环，
-      // 页面会被撑出滚动条（route 也是同样的算法）。
-      const reserveH = level.axis === 'vertical' ? 240 : 200;
-      const fromH = Math.floor((window.innerHeight - reserveH) / rows);
-      // 宽度预算用棋盘盒自己的宽度（它不随格子大小变化，没有循环）
-      const fromW = Math.floor((rect.width - 24 - (level.axis === 'horizontal' ? 40 : 0)) / cols);
-      cell = Math.max(30, Math.min(92, fromH, fromW));
+      // 横屏：直接用棋盘盒的真实可用空间（stage 占满 play-area 后它是稳定的，
+      // 盒子是 flex 居中容器、不随格子大小变化，没有反馈循环）。
+      const axisPad = level.axis === 'horizontal' ? 40 : 0;
+      const fromH = Math.floor((rect.height - (level.axis === 'vertical' ? 40 : 0)) / rows);
+      const fromW = Math.floor((rect.width - 16 - axisPad - (cols - 1) * GAP) / cols);
+      cell = Math.max(30, Math.min(120, fromH, fromW));
     } else {
       // 竖屏：网格占满宽度（两侧各留 8px，横线镜子时天天从左边探进来另留 40px）
       cell = Math.floor((rect.width - 16 - (level.axis === 'horizontal' ? 40 : 0) - (cols - 1) * GAP) / cols);
-      cell = Math.max(30, Math.min(92, cell));
+      cell = Math.max(30, Math.min(120, cell));
     }
-    // 8×8 在 1024×768 下约 66px，远超任务卡的 56px 底线
+    // 小网格（4×4 及以下）在平板上能放大到 120px，8×8 也比以前更大
     wrap.style.setProperty('--cell', `${cell}px`);
     wrap.style.width = `${cols * cell + (cols - 1) * GAP}px`;
     wrap.style.height = `${rows * cell + (rows - 1) * GAP}px`;
