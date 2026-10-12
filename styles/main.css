@@ -163,7 +163,8 @@ body {
   font-family: inherit;
   border: 4px solid #ffffff;
   border-radius: 26px;
-  padding: clamp(8px, 1.6vh, 18px) 12px clamp(8px, 1.4vh, 16px);
+  /* 竖向 padding 压到很小（任务卡 013-1）：空间尽量留给狗狗，平板上要 ≥160px */
+  padding: clamp(6px, 1vh, 10px) 12px clamp(6px, 0.9vh, 8px);
   min-height: 0;
   cursor: pointer;
   display: flex;
@@ -181,7 +182,9 @@ body {
 .tile:active {
   transform: scale(0.95);
 }
-/* 狗狗和名字都在自己的格子里、按卡片剩余高度缩放，互相挤不着 */
+/* 狗狗和名字都在自己的格子里、按卡片剩余高度缩放，互相挤不着。
+   任务卡 013-1：狗狗要在 440×260 的卡片里占到 ≥160px，
+   svg 保持 1:1，靠 height 拉满、width 按比例跟，超出卡片时再缩。 */
 .tile-pup {
   flex: 1 1 auto;
   min-height: 0;
@@ -190,21 +193,22 @@ body {
   justify-content: center;
 }
 .tile-pup svg {
-  width: min(96px, 100%);
+  width: auto; /* svg 自带 width=96 属性，必须显式放开，否则 aspect-ratio 拉不开 */
   height: 100%;
-  max-height: 200px;
-  min-height: 56px;
+  aspect-ratio: 1;
+  max-width: 100%;
+  min-height: 104px;
 }
 .tile-title {
   flex: none;
-  font-size: clamp(22px, 2.6vw, 34px);
+  font-size: clamp(30px, 3.4vw, 40px);
   font-weight: 700;
   color: var(--ink);
 }
 .tile-stars {
   flex: none;
   font-size: 16px;
-  min-height: 22px;
+  min-height: 20px;
   color: var(--ink-soft);
 }
 
@@ -643,12 +647,13 @@ body {
   .tile {
     padding: 6px 6px;
   }
+  /* 任务卡 013-1：手机竖屏狗狗 ≥110px、名字 ≥30px */
   .tile-pup svg {
-    max-height: 110px;
-    min-height: 48px;
+    max-height: 130px;
+    min-height: 110px;
   }
   .tile-title {
-    font-size: 17px;
+    font-size: 30px;
   }
   .tile-stars {
     font-size: 13px;
