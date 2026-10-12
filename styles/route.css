@@ -2,10 +2,13 @@
    颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏地图占满宽度。 */
 
 .route-stage {
+  /* 撑满 play-area：地图才有真实的高度预算可以放大（任务 007b） */
+  height: 100%;
   min-height: 100%;
   display: flex;
   gap: 22px;
   align-items: stretch;
+  min-width: 0;
 }
 
 /* ============ 地图 ============ */
@@ -90,7 +93,7 @@
   height: 70%;
 }
 
-/* 骨头：能吃掉（缩没），失败后复原 */
+/* 骨头：吃到时先放大再缩没（1 → 1.4 → 0），失败后去掉 class 就复原 */
 .route-bone {
   transition: transform 0.35s ease, opacity 0.35s ease;
 }
@@ -100,8 +103,21 @@
   filter: drop-shadow(0 2px 2px rgba(120, 90, 30, 0.25));
 }
 .route-bone.is-eaten {
-  transform: scale(0.1);
-  opacity: 0;
+  animation: bonePop 0.4s ease-in forwards;
+}
+@keyframes bonePop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(1.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
 }
 
 /* 阿奇：外层管位移，内层管抖动 */
@@ -351,9 +367,11 @@
     flex-direction: column;
     gap: 12px;
   }
+  /* 地图盒吃掉剩余高度，地图在其中居中放大 */
   .route-map-box {
     width: 100%;
-    flex: none;
+    flex: 1 1 auto;
+    min-height: 200px;
   }
   .route-controls {
     width: 100%;
