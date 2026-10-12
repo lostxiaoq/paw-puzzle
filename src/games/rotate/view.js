@@ -141,14 +141,19 @@ export function mount(container, ctx) {
     const queue = []; // 动画期间的点击排队
     let animating = false;
 
-    topLabel.textContent = '这是零件的样子：';
+    // 影子是「目标」：文案要说清楚要把它转成影子这样（任务卡 012-9）
+    topLabel.textContent = '把零件转成这样 👇';
     topPiece.innerHTML = pieceSVG(target, { color: level.color, dim: true });
     topPiece.classList.add('is-shadow');
     topPiece.classList.add('rot-shadow');
 
-    // 灰灰站在影子旁边思考
-    const pup = el(`<div class="rot-pup">${pupSVG('rocky', { size: 96, mood: 'thinking' })}</div>`);
-    topBox.appendChild(pup);
+    // 灰灰和影子排成一排（任务卡 012-9：灰灰要挨着影子，别飘在远处），
+    // 放大到 104px，孩子一眼看清「灰灰在看着影子」
+    const pup = el(`<div class="rot-pup">${pupSVG('rocky', { size: 104, mood: 'thinking' })}</div>`);
+    const topRow = el('<div class="rot-top-row"></div>');
+    topBox.appendChild(topRow); // 先加 row（label 之后）
+    topRow.appendChild(topPiece); // 把影子挪进 row（appendChild 自带「移动」语义）
+    topRow.appendChild(pup);
 
     // 下方：零件 + 转一转按钮
     const bottom = el('<div class="rot-bottom"></div>');

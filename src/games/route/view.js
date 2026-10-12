@@ -100,16 +100,15 @@ function pawPrintSVG() {
     + '</g></svg>';
 }
 
-// 小花（草地装饰）
-function flowerSVG() {
+// 淡淡的小草（草地装饰）。任务卡 012-6：原来用白色小花，孩子容易当成障碍；
+// 改成很淡的小草纹理——又小又贴着格子角，一看就不是路上的东西。
+function grassSVG() {
   return '<svg viewBox="0 0 24 24" aria-hidden="true">'
-    + '<g fill="#ffffff" opacity=".9">'
-    + '<circle cx="12" cy="6" r="4"/><circle cx="18" cy="11" r="4"/>'
-    + '<circle cx="15.5" cy="18" r="4"/><circle cx="8.5" cy="18" r="4"/>'
-    + '<circle cx="6" cy="11" r="4"/>'
-    + '</g>'
-    + '<circle cx="12" cy="12.5" r="3.4" fill="#ffd23f"/>'
-    + '</svg>';
+    + '<g stroke="#3f9d4f" stroke-width="2" stroke-linecap="round" fill="none" opacity=".28">'
+    + '<path d="M8 20 Q7.5 14 4 11"/>'
+    + '<path d="M12 20 Q12 12 12 8"/>'
+    + '<path d="M16 20 Q16.5 14 20 11"/>'
+    + '</g></svg>';
 }
 
 // 本游戏的样式文件（styles/route.css）按需插入一次
@@ -191,7 +190,7 @@ export function mount(container, ctx) {
           boneCells.set(k, bone);
         } else if (flowerCount < 3 && (x * 7 + y * 13 + level.id.length) % 9 === 0) {
           flowerCount += 1;
-          cell.innerHTML = `<div class="route-flower">${flowerSVG()}</div>`;
+          cell.innerHTML = `<div class="route-flower">${grassSVG()}</div>`;
         }
       }
       map.appendChild(cell);

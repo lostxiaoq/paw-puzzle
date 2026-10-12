@@ -4,7 +4,9 @@
    颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏不横向滚动。 */
 
 .rot-stage {
-  min-height: 100%;
+  /* 占满 play-area（main.css 已把它变成居中容器），上下两块分空间 */
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -20,7 +22,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  min-height: 170px;
+  min-height: 190px;
   justify-content: center;
   width: 100%;
 }
@@ -28,6 +30,13 @@
   font-size: 20px;
   font-weight: 700;
   color: var(--ink-soft);
+}
+/* 影子和灰灰排成一排：灰灰紧贴影子（任务卡 012-9） */
+.rot-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
 }
 .rot-top-piece {
   position: relative;
@@ -52,13 +61,11 @@
   background: rgba(122, 112, 144, 0.1);
 }
 
-/* 灰灰站在影子旁边思考 */
+/* 灰灰：和影子同排，紧挨着它 */
 .rot-pup {
-  position: absolute;
-  right: max(0px, calc(50% - 320px));
-  bottom: -8px;
-  width: 88px;
-  height: 88px;
+  width: 104px;
+  height: 104px;
+  flex: none;
   pointer-events: none;
   filter: drop-shadow(0 4px 6px rgba(58, 157, 74, 0.3));
   animation: rotBob 2.2s ease-in-out infinite;
@@ -253,9 +260,8 @@
     height: 108px;
   }
   .rot-pup {
-    right: 0;
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
   }
   .rot-piece-box {
     width: 140px;

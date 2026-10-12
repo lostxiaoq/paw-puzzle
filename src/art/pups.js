@@ -344,6 +344,10 @@ export function pupSVG(id, { size = 120, mood = 'normal' } = {}) {
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-label="${pup.name}">`,
     `<circle cx="100" cy="100" r="93" fill="${look.bg}"/>`,
+    // 狗狗本体整体上移 12px（任务卡 012-5）：身体底部（原 y=192）现在离
+    // 背景圆盘下缘还有一段空隙，项圈徽章（原圆心 y=171）完整露在圆盘里。
+    // 背景圆盘留在原位当「相框」。
+    '<g transform="translate(0 -12)">',
     body(look, spots),
     earsBack(look, id),
     head(look, spots),
@@ -352,6 +356,7 @@ export function pupSVG(id, { size = 120, mood = 'normal' } = {}) {
     earsFront(look, id),
     hat(id, look),
     collarBadge(id, look),
+    '</g>',
     '</svg>',
   ];
   return parts.join('');
