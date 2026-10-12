@@ -1,0 +1,387 @@
+/* 阿奇巡逻：游戏界面样式（任务卡 007）。
+   颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏地图占满宽度。 */
+
+.route-stage {
+  min-height: 100%;
+  display: flex;
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* ============ 地图 ============ */
+.route-map-box {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  --cell: 84px; /* 兜底值，JS 会按可用空间重算 */
+}
+.route-map-wrap {
+  /* 三种关卡主题：草绿 / 浅灰石板 / 沙黄 */
+  --grass-a: #bfe6a0;
+  --grass-b: #b2dd91;
+  --line: rgba(96, 143, 63, 0.4);
+  position: relative;
+  border-radius: 18px;
+  border: 4px solid #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  flex: none;
+}
+.route-theme-park {
+  --grass-a: #bfe6a0;
+  --grass-b: #b2dd91;
+  --line: rgba(96, 143, 63, 0.4);
+}
+.route-theme-city {
+  --grass-a: #e3e6ea;
+  --grass-b: #d7dbe0;
+  --line: rgba(110, 122, 136, 0.35);
+}
+.route-theme-beach {
+  --grass-a: #f7e2ae;
+  --grass-b: #f1d795;
+  --line: rgba(198, 152, 60, 0.4);
+}
+
+.route-map {
+  position: absolute;
+  inset: 0;
+  display: grid;
+}
+.route-cell {
+  position: relative;
+  background: var(--grass-a);
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+.route-cell.alt {
+  background: var(--grass-b);
+}
+.route-cell.is-start {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+.route-cell.is-goal {
+  box-shadow: inset 0 0 0 3px rgba(255, 111, 168, 0.75);
+  background: linear-gradient(180deg, #ffe9f2, #ffd9e9);
+}
+.route-cell.is-goal .route-goal,
+.route-cell.is-obs .route-obs,
+.route-bone,
+.route-flower {
+  position: absolute;
+  inset: 12%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.route-goal svg,
+.route-obs svg {
+  width: 88%;
+  height: 88%;
+}
+.route-flower {
+  inset: 18%;
+  opacity: 0.85;
+}
+.route-flower svg {
+  width: 70%;
+  height: 70%;
+}
+
+/* 骨头：能吃掉（缩没），失败后复原 */
+.route-bone {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.route-bone svg {
+  width: 82%;
+  height: 82%;
+  filter: drop-shadow(0 2px 2px rgba(120, 90, 30, 0.25));
+}
+.route-bone.is-eaten {
+  transform: scale(0.1);
+  opacity: 0;
+}
+
+/* 阿奇：外层管位移，内层管抖动 */
+.route-pup {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cell);
+  height: var(--cell);
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 3px 4px rgba(40, 60, 120, 0.3));
+}
+.route-pup svg {
+  width: 100%;
+  height: 100%;
+}
+.route-pup-in {
+  width: 100%;
+  height: 100%;
+}
+
+/* 爪印 */
+.route-print {
+  position: absolute;
+  width: calc(var(--cell) * 0.3);
+  height: calc(var(--cell) * 0.3);
+  z-index: 2;
+  pointer-events: none;
+  animation: printIn 0.4s ease;
+}
+@keyframes printIn {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* 尺寸动画结束后让位移/旋转生效 */
+.route-print {
+  animation: printIn 0.4s ease, printSettle 0.01s linear 0.4s;
+}
+@keyframes printSettle {
+  to {
+    transform: none;
+  }
+}
+
+/* 提示虚线层 */
+.route-hint-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.route-hint-line.is-on {
+  opacity: 1;
+}
+
+/* ============ 操作区 ============ */
+.route-controls {
+  flex: 0 0 auto;
+  width: clamp(260px, 30%, 340px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 4 张方向卡：十字排布，一个方向固定一种颜色 */
+.route-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 76px);
+  grid-template-rows: repeat(2, 76px);
+  gap: 12px;
+}
+.route-dir {
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.16), var(--shadow);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  touch-action: manipulation;
+}
+.route-dir svg {
+  width: 46px;
+  height: 46px;
+}
+.route-dir:active {
+  transform: translateY(3px) scale(0.96);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16);
+}
+.route-dir-up {
+  background: linear-gradient(180deg, #58a6ff, #2f7fe0);
+}
+.route-dir-down {
+  background: linear-gradient(180deg, #ffb254, #f08c1a);
+}
+.route-dir-left {
+  background: linear-gradient(180deg, #ff8fae, #f2668e);
+}
+.route-dir-right {
+  background: linear-gradient(180deg, #7fd37f, #4caf50);
+}
+
+/* 指令槽 */
+.route-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.route-slot {
+  font-family: inherit;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 3px dashed #cfc6e4;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  touch-action: manipulation;
+}
+.route-slot svg {
+  width: 34px;
+  height: 34px;
+}
+.route-slot.is-filled {
+  border-style: solid;
+  color: #fff;
+  animation: slotPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.route-slot.is-filled:active {
+  transform: scale(0.88);
+}
+@keyframes slotPop {
+  from {
+    transform: scale(0.3);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.route-slot.s-up {
+  background: linear-gradient(180deg, #58a6ff, #2f7fe0);
+  border-color: #2f7fe0;
+}
+.route-slot.s-down {
+  background: linear-gradient(180deg, #ffb254, #f08c1a);
+  border-color: #f08c1a;
+}
+.route-slot.s-left {
+  background: linear-gradient(180deg, #ff8fae, #f2668e);
+  border-color: #f2668e;
+}
+.route-slot.s-right {
+  background: linear-gradient(180deg, #7fd37f, #4caf50);
+  border-color: #4caf50;
+}
+/* 出错的卡片标红 */
+.route-slot.is-fail {
+  border-color: #e5484d;
+  background: #ffd9db;
+}
+.route-slot.is-fail svg {
+  color: #c62f34;
+}
+/* 提示闪烁 */
+.route-slot.is-hint,
+.route-go.is-hint {
+  animation: hintFlash 0.55s ease-in-out infinite;
+}
+@keyframes hintFlash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+  }
+}
+
+/* 出发 / 清空 */
+.route-actions {
+  display: flex;
+  gap: 12px;
+}
+.route-go {
+  font-family: inherit;
+  min-width: 168px;
+  min-height: 72px;
+  border: none;
+  border-radius: 999px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #6fce6f, #3a9d4a);
+  box-shadow: 0 6px 0 #2c7a38, var(--shadow);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  touch-action: manipulation;
+}
+.route-go:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #2c7a38;
+}
+.route-clear {
+  font-family: inherit;
+  min-width: 92px;
+  min-height: 72px;
+  border: none;
+  border-radius: 999px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: 0 6px 0 #d8d2ea, var(--shadow);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  touch-action: manipulation;
+}
+.route-clear:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #d8d2ea;
+}
+
+/* ============ 手机竖屏：地图在上占满宽，操作区在下 ============ */
+@media (max-width: 700px) {
+  .route-stage {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .route-map-box {
+    width: 100%;
+    flex: none;
+  }
+  .route-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .route-dpad {
+    grid-template-columns: repeat(3, 66px);
+    grid-template-rows: repeat(2, 66px);
+    gap: 10px;
+  }
+  .route-dir svg {
+    width: 40px;
+    height: 40px;
+  }
+  .route-slot {
+    width: 46px;
+    height: 46px;
+  }
+  .route-slot svg {
+    width: 30px;
+    height: 30px;
+  }
+  .route-go {
+    min-height: 64px;
+    font-size: 24px;
+  }
+  .route-clear {
+    min-height: 64px;
+    font-size: 20px;
+  }
+}
