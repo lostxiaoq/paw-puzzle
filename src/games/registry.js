@@ -4,6 +4,7 @@
 
 import { mount as placeholderMount } from './placeholder.js';
 import { LEVELS as routeLevels } from './route/levels.js';
+import { LEVELS as mirrorLevels } from './mirror/levels.js';
 
 async function loadPlaceholder() {
   return { mount: placeholderMount };
@@ -13,9 +14,13 @@ async function loadRoute() {
   return import('./route/view.js');
 }
 
+async function loadMirror() {
+  return import('./mirror/view.js');
+}
+
 export const GAMES = [
   { id: 'route', title: '阿奇巡逻', pup: 'chase', levelCount: routeLevels.length, load: loadRoute },
-  { id: 'mirror', title: '天天的魔镜', pup: 'skye', levelCount: 12, load: loadPlaceholder },
+  { id: 'mirror', title: '天天的魔镜', pup: 'skye', levelCount: mirrorLevels.length, load: loadMirror },
   { id: 'rotate', title: '灰灰修零件', pup: 'rocky', levelCount: 12, load: loadPlaceholder },
   { id: 'cubes', title: '小砾搭积木', pup: 'rubble', levelCount: 12, load: loadPlaceholder },
 ];

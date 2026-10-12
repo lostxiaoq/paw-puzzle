@@ -1,0 +1,353 @@
+/* 天天的魔镜：游戏界面样式（任务卡 008）。
+   左边网格 + 闪亮的银色魔镜线 + 线头上的天天，
+   右边大圆色板按钮 + 「检查」按钮。
+   颜色明快、按钮大、文字少；横屏 1024×768 优先，手机竖屏不横向滚动。 */
+
+.mirror-stage {
+  min-height: 100%;
+  display: flex;
+  gap: 26px;
+  align-items: stretch;
+}
+
+/* ============ 网格（画板） ============ */
+.mirror-board-box {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  --cell: 64px; /* 兜底值，JS 会按可用空间重算 */
+}
+.mirror-wrap {
+  /* 格子间的缝，要和 view.js 里的 GAP 常量一致 */
+  --gap: 6px;
+  position: relative;
+  flex: none;
+}
+/* 按天线的方向预留边距：竖线镜子下方留、横线镜子左边留 */
+.mirror-axis-vertical {
+  margin-bottom: 40px;
+}
+.mirror-axis-horizontal {
+  margin-left: 40px;
+}
+.mirror-grid {
+  display: grid;
+  gap: var(--gap);
+}
+
+/* 格子：圆角小方块；给出的一半不能点（禁用态由浏览器降透明度） */
+.mirror-cell {
+  font-family: inherit;
+  width: var(--cell);
+  height: var(--cell);
+  padding: 0;
+  border: none;
+  border-radius: 30%;
+  background: #fdfdff;
+  box-shadow:
+    inset 0 0 0 2px rgba(122, 112, 144, 0.28),
+    0 2px 0 rgba(122, 112, 144, 0.12);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: box-shadow 0.12s ease, filter 0.12s ease;
+}
+.mirror-cell.is-given {
+  cursor: default;
+}
+.mirror-cell.is-given:not(.is-painted) {
+  background: #f3f0f8;
+}
+.mirror-cell.is-painted {
+  box-shadow: inset 0 0 0 2px rgba(59, 50, 72, 0.25), 0 2px 3px rgba(59, 50, 72, 0.18);
+}
+.mirror-cell:not(.is-given):hover {
+  filter: brightness(0.95);
+}
+.mirror-cell:not(.is-given):active {
+  transform: scale(0.92);
+}
+
+/* 检查后出错的格子：轻轻抖动 + 闪烁 1 秒，不永久标红 */
+.mirror-cell.is-wrong {
+  animation: mirrorWrong 0.5s ease-in-out 2;
+}
+@keyframes mirrorWrong {
+  0%,
+  100% {
+    transform: translateX(0);
+    filter: none;
+  }
+  20% {
+    transform: translateX(-4px);
+    filter: brightness(1.6) saturate(0.4);
+  }
+  60% {
+    transform: translateX(4px);
+    filter: brightness(1.6) saturate(0.4);
+  }
+}
+
+/* 提示：和镜子对面那个格子一起闪闪发光 3 次 */
+.mirror-cell.is-hint {
+  animation: mirrorHint 0.5s ease-in-out 3;
+}
+@keyframes mirrorHint {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 2px rgba(122, 112, 144, 0.28), 0 2px 0 rgba(122, 112, 144, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(255, 214, 79, 0.85),
+      0 0 18px 6px rgba(255, 214, 79, 0.6);
+  }
+}
+
+/* ============ 魔镜线 + 天天 ============ */
+.mirror-line {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mirror-line-vertical {
+  left: 50%;
+  top: -10px;
+  bottom: -10px;
+  transform: translateX(-50%);
+  width: 8px;
+}
+.mirror-line-horizontal {
+  top: 50%;
+  left: -10px;
+  right: -10px;
+  transform: translateY(-50%);
+  height: 8px;
+}
+.mirror-line-spark {
+  /* 闪亮的银线：亮银底 + 白色流光来回滑 */
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #aeb6c2, #f8fafc, #aeb6c2);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 0 10px 2px rgba(255, 255, 255, 0.75),
+    0 2px 6px rgba(90, 100, 120, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+.mirror-line-horizontal .mirror-line-spark {
+  /* 横着的线：渐变换成上下方向 */
+  background: linear-gradient(0deg, #aeb6c2, #f8fafc, #aeb6c2);
+}
+.mirror-line-spark::after {
+  /* 沿线的长度方向来回滑动的流光（竖线：光带上下滑） */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: mirrorShineV 1.8s linear infinite;
+}
+.mirror-line-horizontal .mirror-line-spark::after {
+  /* 横线：光带左右滑 */
+  left: auto;
+  right: auto;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation-name: mirrorShineH;
+}
+@keyframes mirrorShineV {
+  0% {
+    top: -45%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+@keyframes mirrorShineH {
+  0% {
+    left: -45%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* 天天：站在线的一端，竖线在下端、横线在左端，轻轻上下浮动 */
+.mirror-pup {
+  position: absolute;
+  z-index: 6;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 5px rgba(222, 83, 144, 0.35));
+}
+.mirror-pup svg {
+  width: 100%;
+  height: 100%;
+}
+.mirror-pup-vertical {
+  left: 50%;
+  bottom: -36px;
+  transform: translateX(-50%);
+  animation: mirrorBobV 2s ease-in-out infinite;
+}
+@keyframes mirrorBobV {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+.mirror-pup-horizontal {
+  left: -36px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: mirrorBobH 2s ease-in-out infinite;
+}
+@keyframes mirrorBobH {
+  0%,
+  100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  50% {
+    transform: translateY(-50%) translateX(-6px);
+  }
+}
+
+/* 过关时整个图案闪一下 */
+.mirror-wrap.is-win {
+  animation: mirrorWin 0.7s ease-out;
+}
+@keyframes mirrorWin {
+  0% {
+    filter: brightness(1);
+  }
+  30% {
+    filter: brightness(1.55);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+/* ============ 操作区：色板 + 检查 ============ */
+.mirror-side {
+  flex: 0 0 auto;
+  width: clamp(220px, 26%, 320px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+}
+.mirror-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+.mirror-color {
+  font-family: inherit;
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border-radius: 50%;
+  border: 6px solid #ffffff;
+  box-shadow: 0 6px 0 rgba(93, 82, 140, 0.2), var(--shadow);
+  cursor: pointer;
+  transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.14s ease;
+  touch-action: manipulation;
+}
+.mirror-color:active {
+  transform: scale(0.9);
+}
+.mirror-color.is-active {
+  transform: scale(1.18);
+  box-shadow:
+    0 0 0 5px #ffffff,
+    0 8px 16px rgba(93, 82, 140, 0.3);
+}
+
+/* 「检查」按钮 */
+.mirror-check {
+  font-family: inherit;
+  min-width: 170px;
+  min-height: 72px;
+  border: none;
+  border-radius: 999px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #ff9fbe, #f2668e);
+  box-shadow: 0 6px 0 #d14e78, var(--shadow);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  touch-action: manipulation;
+}
+.mirror-check:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #d14e78;
+}
+.mirror-check.is-hint {
+  animation: mirrorHintBtn 0.55s ease-in-out 3;
+}
+@keyframes mirrorHintBtn {
+  0%,
+  100% {
+    box-shadow: 0 6px 0 #d14e78, var(--shadow);
+  }
+  50% {
+    box-shadow: 0 6px 0 #d14e78, 0 0 0 10px rgba(255, 214, 79, 0.9);
+  }
+}
+
+/* ============ 手机竖屏：网格在上占满宽，操作区在下 ============ */
+@media (max-width: 700px) {
+  .mirror-stage {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .mirror-board-box {
+    width: 100%;
+    flex: none;
+    --cell: 40px; /* 竖屏兜底，JS 会按宽度重算 */
+  }
+  .mirror-side {
+    width: 100%;
+  }
+  .mirror-color {
+    width: 64px;
+    height: 64px;
+    border-width: 5px;
+  }
+  .mirror-pup-vertical {
+    bottom: -32px;
+  }
+  .mirror-pup-horizontal {
+    left: -32px;
+  }
+}
