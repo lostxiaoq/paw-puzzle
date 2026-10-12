@@ -331,6 +331,115 @@ async function scenarioBadges(browser, base) {
   check(page.errors.length === 0 && p2.errors.length === 0, `没有 JS 错误${page.errors.length + p2.errors.length ? '：' + [...page.errors, ...p2.errors].slice(0, 5).join(' | ') : ''}`);
 }
 
+// ---- 配音（任务卡 014）----
+// 游戏里说过的每一句话都记在 window.__pawSaid：[{ speaker, text, source: 'file' | 'tts' }]
+
+async function said(page) {
+  return page.evaluate(() => (window.__pawSaid || []).map((x) => ({ ...x })));
+}
+
+// 每关先按提示、再故意做错一次、再正确通关，尽量把所有台词都触发一遍
+const WRONG = {
+  async route(page) {
+    await page.click(tid('card-up')).catch(() => {});
+    await page.click(tid('btn-go')).catch(() => {});
+    await page.waitForTimeout(1500);
+    await page.click(tid('btn-clear')).catch(() => {});
+  },
+  async mirror(page) {
+    await page.click(tid('btn-check')).catch(() => {});
+    await page.waitForTimeout(600);
+  },
+  async rotate(page) {
+    const wrong = page.locator('[data-testid^="choice-"]:not([data-answer="true"])').first();
+    if (await wrong.count()) { await wrong.click().catch(() => {}); await page.waitForTimeout(900); }
+  },
+  async cubes(page) {
+    const wrong = page.locator('[data-testid^="choice-"]:not([data-answer="true"])').first();
+    if (await wrong.count()) { await wrong.click().catch(() => {}); await page.waitForTimeout(900); }
+  },
+};
+
+async function scenarioVoiceCoverage(browser, base) {
+  console.log('[voice-coverage]');
+  const page = await newPage(browser, base);
+  await page.waitForTimeout(800);
+  for (const game of ['route', 'mirror', 'rotate', 'cubes']) {
+    const n = await page.evaluate(async (g) => (await import(`/src/games/${g}/levels.js`)).LEVELS.length, game);
+    let ok = 0;
+    for (let i = 0; i < n; i++) {
+      await go(page, `#/game/${game}/${i}`);
+      if (!(await exists(page, 'play-area'))) break;
+      await page.waitForTimeout(300);
+      await page.click(tid('btn-speak')).catch(() => {});
+      await page.click(tid('btn-hint')).catch(() => {});
+      await page.waitForTimeout(400);
+      await WRONG[game](page);
+      try { await SOLVERS[game](page, i); } catch { /* 下面判断 */ }
+      if (await exists(page, 'success-overlay', 20000)) ok++;
+      else break;
+    }
+    check(ok === n, `${game} 全部 ${n} 关在「提示 + 做错一次」后仍能通关（${ok}/${n}）`);
+  }
+  await go(page, '#/badges');
+  await page.waitForTimeout(400);
+  for (const p of ['chase', 'marshall', 'skye', 'rubble', 'rocky', 'zuma']) await page.click(tid(`badge-${p}`)).catch(() => {});
+  await go(page, '#/');
+  await page.waitForTimeout(400);
+  const before = await said(page);
+  // 最后单独触发一次护眼提醒（整页加载会清空记录，所以先把前面的存下来）
+  await page.goto(base + '/?break=2#/game/route/0');
+  await exists(page, 'break-overlay', 8000);
+  await page.click(tid('btn-break-ok')).catch(() => {});
+  await page.waitForTimeout(800);
+  const all = [...before, ...(await said(page))];
+  const { LINES } = await page.evaluate(async () => ({ LINES: (await import('/src/voice/lines.js')).LINES }));
+  const known = new Set(LINES.map((l) => `${l.speaker}|${l.text}`));
+  const missing = [...new Set(all.map((x) => `${x.speaker}|${x.text}`))].filter((k) => !known.has(k));
+  check(all.length >= 100, `录到足够多的朗读（${all.length} 句）`);
+  check(missing.length === 0, `说过的每一句都在 src/voice/lines.js 里${missing.length ? '（缺 ' + missing.length + ' 句：' + missing.slice(0, 8).join(' / ') + '）' : ''}`);
+  const speakers = new Set(all.map((x) => x.speaker));
+  for (const p of ['chase', 'marshall', 'skye', 'rubble', 'rocky']) check(speakers.has(p), `有 ${p} 说的话`);
+  const noSpeaker = all.filter((x) => !['chase', 'marshall', 'skye', 'rubble', 'rocky', 'zuma'].includes(x.speaker));
+  check(noSpeaker.length === 0, `每一句都标明了是哪只狗狗说的${noSpeaker.length ? '（例如「' + noSpeaker[0].text + '」speaker=' + noSpeaker[0].speaker + '）' : ''}`);
+  if (process.env.FORGE_VOICE_REQUIRE_FILES) {
+    const tts = all.filter((x) => x.source !== 'file');
+    check(tts.length === 0, `全部台词都播放音频文件${tts.length ? '（' + tts.length + ' 句退回系统语音，例如「' + tts[0].text + '」）' : ''}`);
+  }
+  fs.mkdirSync(SHOTS, { recursive: true });
+  fs.writeFileSync(path.join(SHOTS, 'voice-said.json'), JSON.stringify(all, null, 1));
+  check(page.errors.length === 0, `没有 JS 错误${page.errors.length ? '：' + page.errors.slice(0, 5).join(' | ') : ''}`);
+}
+
+async function scenarioVoicePlay(browser, base) {
+  console.log('[voice-play]');
+  // 1) 没有音频清单：退回系统语音，不报错
+  const p1 = await newPage(browser, base);
+  await p1.route('**/audio/voice/manifest.json', (r) => r.fulfill({ status: 404, body: 'nope' }));
+  await p1.goto(base + '/?v=1#/game/route/0');
+  await p1.waitForTimeout(1200);
+  const s1 = await said(p1);
+  check(s1.length > 0 && s1.every((x) => x.source === 'tts'), '没有音频清单时退回系统语音（source=tts）');
+  check(p1.errors.length === 0, `没有清单时无 JS 错误${p1.errors.length ? '：' + p1.errors.slice(0, 3).join(' | ') : ''}`);
+
+  // 2) 有清单：命中的台词播放 mp3
+  const p2 = await newPage(browser, base);
+  const fixture = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'voice-fixture.mp3'));
+  const target = await p2.evaluate(async () => (await import('/src/voice/lines.js')).LINES);
+  const files = Object.fromEntries(target.map((l) => [`${l.speaker}|${l.text}`, 'fixture.mp3']));
+  await p2.route('**/audio/voice/manifest.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ version: 1, files }) }));
+  await p2.route('**/audio/voice/fixture.mp3', (r) => r.fulfill({ contentType: 'audio/mpeg', body: fixture }));
+  await p2.goto(base + '/?v=2#/game/route/0');
+  await p2.waitForTimeout(1500);
+  await p2.click(tid('btn-speak'));
+  await p2.waitForTimeout(800);
+  const s2 = await said(p2);
+  check(s2.length > 0 && s2.every((x) => x.source === 'file'), `有清单时播放音频文件（source=file，${s2.map((x) => x.source).join(',')}）`);
+  const playing = await p2.evaluate(() => window.__pawAudioPlays || 0);
+  check(playing >= 1, `确实调用了音频播放（__pawAudioPlays=${playing}）`);
+  check(p2.errors.length === 0, `有清单时无 JS 错误${p2.errors.length ? '：' + p2.errors.slice(0, 3).join(' | ') : ''}`);
+}
+
 const args = process.argv.slice(2);
 if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game> | route-arrows | badges'); process.exit(2); }
 const srv = await serve();
@@ -341,6 +450,8 @@ try {
     if (a === 'home') await scenarioHome(browser, base);
     else if (a === 'route-arrows') await scenarioRouteArrows(browser, base);
     else if (a === 'badges') await scenarioBadges(browser, base);
+    else if (a === 'voice-coverage') await scenarioVoiceCoverage(browser, base);
+    else if (a === 'voice-play') await scenarioVoicePlay(browser, base);
     else if (a.startsWith('play:')) await scenarioPlay(browser, base, a.slice(5), false);
     else if (a.startsWith('playall:')) await scenarioPlay(browser, base, a.slice(8), true);
     else { console.error(`未知场景 ${a}`); failures.push(a); }
