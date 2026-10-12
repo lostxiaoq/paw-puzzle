@@ -355,10 +355,16 @@ body {
   margin: 0;
   font-size: clamp(24px, 3.4vw, 34px);
 }
+/* 总星数徽章：金色大字，测试读 total-stars 的文字 */
 .badges-total {
   margin-left: auto;
-  font-size: 20px;
-  color: var(--ink-soft);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  color: #b07800;
+  background: #fff3c9;
+  border-radius: 999px;
+  padding: 8px 22px;
+  box-shadow: inset 0 0 0 3px #ffd84d;
 }
 .badges-row {
   display: flex;
@@ -367,20 +373,183 @@ body {
   justify-content: center;
   align-content: flex-start;
 }
+
+/* 徽章卡片：按钮，整体可点 */
 .badge-card {
-  width: 150px;
+  position: relative;
+  width: 158px;
+  border: 4px solid #ffffff;
   border-radius: 24px;
   padding: 16px 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  border: 4px solid #ffffff;
   box-shadow: var(--shadow);
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.14s ease;
+  touch-action: manipulation;
+}
+.badge-card:active {
+  transform: scale(0.94);
 }
 .badge-name {
   font-size: 20px;
   font-weight: 700;
+}
+.badge-pup {
+  width: 90px;
+  height: 90px;
+  position: relative;
+}
+.badge-pup svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 已获得：金色光圈 + happy 狗狗 */
+.badge-card.is-earned .badge-pup::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 216, 77, 0.55) 55%, rgba(255, 216, 77, 0) 75%);
+  z-index: -1;
+}
+.badge-card.is-earned {
+  box-shadow: var(--shadow), 0 0 0 4px rgba(255, 216, 77, 0.8);
+}
+.badge-lock {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 22px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+}
+.badge-hint {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  text-align: center;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+/* 未获得：狗狗灰色剪影 + 小锁 */
+.badge-card.is-locked .badge-pup svg {
+  filter: grayscale(1) brightness(1.4);
+  opacity: 0.75;
+}
+.badge-card.is-locked .badge-lock {
+  display: block;
+}
+.badge-card.is-locked .badge-name {
+  color: var(--ink-soft);
+}
+
+/* ============ 过关弹层里的「获得新徽章！」 ============ */
+.success-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+.success-badges[hidden] {
+  display: none;
+}
+.success-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: linear-gradient(180deg, #fff6d8, #ffe9a8);
+  border: 3px solid #ffd84d;
+  border-radius: 18px;
+  padding: 8px 16px;
+  animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.success-badge-pup {
+  width: 72px;
+  height: 72px;
+}
+.success-badge-pup svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.success-badge-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #8a6a00;
+}
+
+/* ============ 护眼提醒弹层（盖在最上层） ============ */
+.break-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* 高于过关弹层（50），不打断下面的动画 */
+  background: rgba(44, 34, 66, 0.72);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.break-overlay[hidden] {
+  display: none;
+}
+.break-card {
+  background: linear-gradient(180deg, #fffdf7, #f3efff);
+  border: 5px solid #c9b6ff;
+  border-radius: 30px;
+  box-shadow: 0 18px 50px rgba(20, 12, 50, 0.45);
+  padding: 30px 44px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.break-pup {
+  width: 150px;
+  height: 150px;
+}
+.break-pup svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: bob 2.6s ease-in-out infinite;
+}
+.break-zzz {
+  font-size: 26px;
+  font-weight: 800;
+  color: #8f7ad6;
+  letter-spacing: 6px;
+  animation: zzzFloat 2.6s ease-in-out infinite;
+}
+@keyframes zzzFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+.break-text {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 /* ============ 占位游戏页 ============ */
@@ -444,6 +613,16 @@ body {
   .badge-card {
     width: calc(33% - 8px);
     min-width: 96px;
+  }
+  .badge-hint {
+    display: none; /* 手机上太挤，提示只靠语音 */
+  }
+  .badge-pup {
+    width: 64px;
+    height: 64px;
+  }
+  .badge-lock {
+    font-size: 16px;
   }
   .corner-btn {
     top: 10px;
