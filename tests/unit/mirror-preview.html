@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>魔镜关卡预览 — 天天的图案审查表</title>
+<style>
+  /* 供人工审查图案用，不属于验收测试 */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #fff4e0 0%, #ffe9f2 50%, #e3f4ff 100%);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1 { text-align: center; color: #c2477e; font-size: 28px; margin-bottom: 8px; }
+  .legend {
+    text-align: center; color: #9b8aa5; font-size: 14px; margin-bottom: 20px;
+  }
+  .legend .line {
+    display: inline-block; width: 34px; border-top: 3px dashed #ff6fa8;
+    vertical-align: middle; margin: 0 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  .card {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 16px 16px 12px;
+    box-shadow: 0 6px 18px rgba(194, 71, 126, 0.12);
+  }
+  .card h2 { font-size: 20px; color: #6b4226; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    background: #ff6fa8; color: #fff; border-radius: 999px;
+    font-size: 14px; padding: 2px 10px; font-weight: 600;
+  }
+  .tag {
+    margin-left: auto; font-size: 12px; color: #9b8aa5;
+    background: #f6efff; border-radius: 999px; padding: 2px 10px;
+  }
+  .boards { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+  table { border-collapse: collapse; }
+  td.cell { width: 34px; height: 34px; border: 1px solid #f0e3f5; }
+  td.empty { background: #fdf6ff; }
+  /* 镜子线：画在两个半边中间，虚线 */
+  td.mv { border-right: 3px dashed #ff6fa8; }
+  td.mh { border-bottom: 3px dashed #ff6fa8; }
+  .mini table { border-collapse: collapse; }
+  .mini td.cell { width: 19px; height: 19px; }
+  .mini td.todraw {
+    background: repeating-linear-gradient(45deg, #fff 0 4px, #ffeef6 4px 8px);
+  }
+  .caption { font-size: 12px; color: #9b8aa5; margin-top: 6px; text-align: center; }
+  .colors { display: flex; gap: 6px; margin-top: 10px; align-items: center; }
+  .swatch { width: 22px; height: 22px; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 0 0 1px #eee; }
+  .colors small { color: #b9aac2; font-size: 11px; margin-left: 4px; }
+  .error {
+    max-width: 600px; margin: 40px auto; background: #fff0f0;
+    border: 2px solid #d62828; border-radius: 16px; padding: 20px;
+    color: #a91f1f; font-size: 16px; line-height: 1.6; display: none;
+  }
+</style>
+</head>
+<body>
+  <h1>🪞 天天的魔镜 · 关卡图案审查表</h1>
+  <div class="legend">
+    左边大图是完整答案，<span class="line"></span>粉色虚线是魔镜；<br>
+    右边小图是孩子开局看到的（贴了格子花纸的一侧是要自己涂的）。
+  </div>
+  <div class="error" id="err">
+    加载失败啦：请在本仓库根目录运行 <code>npm run serve</code>，
+    然后打开 <code>http://localhost:8765/tests/unit/mirror-preview.html</code>
+  </div>
+  <div class="grid" id="grid"></div>
+  <script type="module">
+    try {
+      const { LEVELS } = await import('../../src/games/mirror/levels.js');
+      const { givenHalf } = await import('../../src/games/mirror/logic.js');
+
+      // 一块棋盘：data 是二维数组，mirrorSide 决定虚线画在哪两行/列之间
+      function board(data, lv, { mini = false, toDraw = false } = {}) {
+        const rows = data.length;
+        const cols = data[0].length;
+        const mid = lv.axis === 'vertical' ? cols / 2 : rows / 2;
+        const html = data.map((row, r) => {
+          const tds = row.map((v, c) => {
+            const mirror = lv.axis === 'vertical'
+              ? (c === mid ? ' mv' : '')
+              : (r === mid ? ' mh' : '');
+            let cls = `cell${mirror}`;
+            let style = '';
+            if (v) {
+              style = `background:${lv.colors[v - 1]};`;
+            } else if (toDraw && (lv.axis === 'vertical' ? c >= mid : r >= mid)) {
+              cls += ' todraw'; // 要孩子涂的那一半：铺一层淡淡的斜纹
+            } else {
+              cls += ' empty';
+            }
+            return `<td class="${cls}" style="${style}"></td>`;
+          }).join('');
+          return `<tr>${tds}</tr>`;
+        }).join('');
+        return `<table${mini ? ' style="width:auto"' : ''}>${html}</table>`;
+      }
+
+      const grid = document.getElementById('grid');
+      grid.innerHTML = LEVELS.map((lv, i) => {
+        const swatches = lv.colors
+          .map((c) => `<span class="swatch" style="background:${c}" title="${c}"></span>`)
+          .join('');
+        const axisText = lv.axis === 'vertical' ? '竖线镜子 ↔' : '横线镜子 ↕';
+        const rows = lv.solution.length;
+        const cols = lv.solution[0].length;
+        return `
+          <section class="card">
+            <h2><span class="badge">第 ${i + 1} 关</span>${lv.name}
+              <span class="tag">${axisText} · ${cols}×${rows} · ${lv.colors.length} 色</span></h2>
+            <div class="boards">
+              <div>${board(lv.solution, lv)}
+                <div class="caption">完整答案（solution）</div></div>
+              <div class="mini">${board(givenHalf(lv), lv, { mini: true, toDraw: true })}
+                <div class="caption">孩子看到的</div></div>
+            </div>
+            <div class="colors">${swatches}<small>${lv.colors.join(' ')}</small></div>
+          </section>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('err').style.display = 'block';
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
