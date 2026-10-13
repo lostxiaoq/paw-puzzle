@@ -440,6 +440,47 @@ async function scenarioVoicePlay(browser, base) {
   check(p2.errors.length === 0, `有清单时无 JS 错误${p2.errors.length ? '：' + p2.errors.slice(0, 3).join(' | ') : ''}`);
 }
 
+// iPad Safari 兼容：复用单个 audio 元素；play() 被拦截时退回系统语音（任务卡 015）
+async function scenarioVoiceIOS(browser, base) {
+  console.log('[voice-ios]');
+  // 统计页面创建了多少个音频元素、系统语音被调用几次
+  const probe = `
+    window.__audioCreated = 0; window.__ttsSpeak = 0;
+    const A = window.Audio;
+    window.Audio = function (...a) { window.__audioCreated++; return new A(...a); };
+    window.Audio.prototype = A.prototype;
+    const ce = document.createElement.bind(document);
+    document.createElement = (t, ...r) => { if (String(t).toLowerCase() === 'audio') window.__audioCreated++; return ce(t, ...r); };
+    if (window.speechSynthesis) { const s = speechSynthesis.speak.bind(speechSynthesis); speechSynthesis.speak = (u) => { window.__ttsSpeak++; try { s(u); } catch {} }; }
+  `;
+  const p1 = await newPage(browser, base);
+  await p1.addInitScript(probe);
+  await p1.goto(base + '/?ios=1#/');
+  await p1.waitForTimeout(1200);
+  await p1.click(tid('game-tile-route'));
+  await p1.waitForTimeout(500);
+  await p1.click(tid('level-btn-0'));
+  await p1.waitForTimeout(1200);
+  for (let i = 0; i < 4; i++) { await p1.click(tid('btn-speak')); await p1.waitForTimeout(500); }
+  const created = await p1.evaluate(() => window.__audioCreated);
+  const plays = await p1.evaluate(() => window.__pawAudioPlays || 0);
+  check(plays >= 4, `播放了音频（__pawAudioPlays=${plays}）`);
+  check(created <= 2, `复用音频元素，没有每句新建一个（创建了 ${created} 个）`);
+
+  // 模拟 iOS 拦截：play() 一律被拒绝
+  const p2 = await newPage(browser, base);
+  await p2.addInitScript(probe + `
+    HTMLMediaElement.prototype.play = function () { return Promise.reject(new DOMException('blocked', 'NotAllowedError')); };
+  `);
+  await p2.goto(base + '/?ios=2#/game/route/0');
+  await p2.waitForTimeout(1500);
+  await p2.click(tid('btn-speak'));
+  await p2.waitForTimeout(800);
+  const tts = await p2.evaluate(() => window.__ttsSpeak);
+  check(tts >= 1, `音频被拦截时退回系统语音（speechSynthesis.speak 调用 ${tts} 次）`);
+  check(p2.errors.length === 0 && p1.errors.length === 0, `没有 JS 错误或未处理的 Promise 拒绝${[...p1.errors, ...p2.errors].length ? '：' + [...p1.errors, ...p2.errors].slice(0, 3).join(' | ') : ''}`);
+}
+
 const args = process.argv.slice(2);
 if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game> | route-arrows | badges'); process.exit(2); }
 const srv = await serve();
@@ -452,6 +493,7 @@ try {
     else if (a === 'badges') await scenarioBadges(browser, base);
     else if (a === 'voice-coverage') await scenarioVoiceCoverage(browser, base);
     else if (a === 'voice-play') await scenarioVoicePlay(browser, base);
+    else if (a === 'voice-ios') await scenarioVoiceIOS(browser, base);
     else if (a.startsWith('play:')) await scenarioPlay(browser, base, a.slice(5), false);
     else if (a.startsWith('playall:')) await scenarioPlay(browser, base, a.slice(8), true);
     else { console.error(`未知场景 ${a}`); failures.push(a); }
