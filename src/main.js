@@ -5,16 +5,23 @@
 import { parseRoute, toHash, watch } from './core/router.js';
 import { createStore } from './core/storage.js';
 import { starsFor } from './core/scoring.js';
-import { say } from './core/speech.js';
+import { say, setSpeaker } from './core/speech.js';
 import { play } from './core/sfx.js';
 import { PUPS, pupSVG } from './art/pups.js';
 import { GAMES } from './games/registry.js';
 import {
+  LINES_HOME,
+  LINES_COMMON,
+  LINES_BADGES,
+  LINES_BREAK,
+  LINES_ROUTE,
+  LINES_MIRROR,
+  LINES_ROTATE,
+  LINES_CUBES,
+} from './voice/lines.js';
+import {
   earnedBadges,
   totalStarsOf,
-  BADGE_HINTS,
-  BADGE_THANKS,
-  GAME_BADGES,
 } from './badges.js';
 
 const store = createStore();
@@ -24,6 +31,11 @@ function el(html) {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
+}
+
+// 用台词对象朗读（台词来自 src/voice/lines.js，本文件不再写死任何一句话）
+function speakLine(l) {
+  say(l.text, { speaker: l.speaker });
 }
 
 // 每只狗狗主页面的浅色底（主色的淡色版，卡片 / 徽章墙用）
@@ -65,6 +77,7 @@ function setView(node, um) {
 
 // ============ 首页 ============
 function renderHome() {
+  setSpeaker('marshall'); // 首页是毛毛主持
   const page = el(`<div class="page page-home"></div>`);
 
   // 顶部：标题 + 毛毛打招呼
@@ -113,11 +126,12 @@ function renderHome() {
   page.appendChild(badges);
 
   setView(page);
-  say('欢迎来到汪汪队空间大冒险！选一个游戏吧');
+  speakLine(LINES_HOME.welcome);
 }
 
 // ============ 选关页 ============
 function renderLevels(game) {
+  setSpeaker('marshall');
   const pup = PUPS.find((p) => p.id === game.pup);
   const progress = store.getProgress(game.id);
   const page = el(`<div class="page page-levels"></div>`);
@@ -164,7 +178,7 @@ function renderLevels(game) {
   page.appendChild(grid);
 
   setView(page);
-  say(`${game.title}，一共有 ${game.levelCount} 关。选一个亮着的关卡吧！`);
+  speakLine(LINES_HOME.levelsIntro);
 }
 
 // ============ 游戏页外框 ============
@@ -176,6 +190,14 @@ async function renderPlay(game, levelIndex) {
     return;
   }
 
+  setSpeaker(game.pup); // 游戏页由主持狗狗说话
+  // 每个游戏有自己的开场白（主持狗狗说），外框统一先报这一句
+  const LEVEL_START = {
+    route: LINES_ROUTE.levelStart,
+    mirror: LINES_MIRROR.levelStart,
+    rotate: LINES_ROTATE.levelStart,
+    cubes: LINES_CUBES.levelStart,
+  };
   const pup = PUPS.find((p) => p.id === game.pup);
   const page = el(`<div class="page page-play"></div>`);
 
@@ -230,12 +252,14 @@ async function renderPlay(game, levelIndex) {
     levelIndex,
     level: null,
     pup,
+    // 本关指令：自动带上主持狗狗说话
     setInstruction(text) {
       instruction = String(text ?? '');
-      say(instruction);
+      say(instruction, { speaker: game.pup });
     },
+    // 只朗读，不改变指令；也自动用主持狗狗
     say(text) {
-      say(String(text ?? ''));
+      say(String(text ?? ''), { speaker: game.pup });
     },
     sfx(name) {
       play(name);
@@ -265,7 +289,7 @@ async function renderPlay(game, levelIndex) {
   });
   top.querySelector('[data-testid="btn-speak"]').addEventListener('click', () => {
     play('tap');
-    say(instruction); // 只重读最近一次指令
+    say(instruction, { speaker: game.pup }); // 只重读最近一次指令
   });
   hintBtn.addEventListener('click', () => {
     play('tap');
@@ -273,13 +297,7 @@ async function renderPlay(game, levelIndex) {
   });
 
   // ———— 过关弹层 ————
-  const PRAISES = [
-    '太棒了！',
-    '真厉害！',
-    '你真聪明！',
-    '哇，做对啦！',
-    '狗狗为你欢呼！',
-  ];
+  const PRAISES = LINES_COMMON.praise; // 夸奖语全部来自台词表
 
   function showSuccess(earnedStars) {
     // 星星逐颗弹出，每颗配 star 音效
@@ -320,8 +338,12 @@ async function renderPlay(game, levelIndex) {
     if (fresh.length) {
       badgeBox.hidden = false;
       // 等星星动画播完再报喜，不盖住星星音效
+      // 新徽章提示由「获得徽章的那只狗狗」说（任务卡 014）
       setTimeout(() => {
-        say(`获得新徽章！${fresh.map((p) => p.name).join('和')}向你祝贺！`);
+        for (const p of fresh) {
+          const lb = LINES_COMMON.newBadge.find((x) => x.speaker === p.id);
+          if (lb) speakLine(lb);
+        }
       }, 400 + earnedStars * 450 + 200);
     }
 
@@ -340,7 +362,9 @@ async function renderPlay(game, levelIndex) {
         location.hash = toHash({ name: 'play', gameId: game.id, level: levelIndex + 1 });
       });
     }
-    say(PRAISES[Math.floor(Math.random() * PRAISES.length)]);
+    // 随机夸奖：毛毛说
+    const praise = PRAISES[Math.floor(Math.random() * PRAISES.length)];
+    speakLine(praise);
   }
 
   // ———— 先把外框挂上页面，再异步加载游戏 view ————
@@ -365,11 +389,12 @@ async function renderPlay(game, levelIndex) {
     area.textContent = '哎呀，游戏走丢了…';
   }
 
-  ctx.setInstruction(`第 ${levelIndex + 1} 关开始啦！`);
+  ctx.setInstruction(LEVEL_START[game.id].text);
 }
 
-// ============ 徽章墙（任务卡 011） ============
+// ============ 徽章墙（任务卡 011 + 014 台词表） ============
 function renderBadges() {
+  setSpeaker('marshall');
   // 汇总进度：{ route: {unlocked, stars}, ... } → 徽章获得情况
   const progressByGame = {};
   for (const g of GAMES) progressByGame[g.id] = store.getProgress(g.id);
@@ -390,11 +415,19 @@ function renderBadges() {
   });
   page.appendChild(head);
 
+  // 点徽章时说的话：已获得 → 道谢；未获得 → 解锁提示（都是狗狗本人说）
+  const thanksLine = (pupId) =>
+    LINES_BADGES.thanks.find((l) => l.speaker === pupId) ||
+    { id: 'badge.thanks.fallback', speaker: pupId, text: '谢谢你！' };
+  const hintLine = (pupId) =>
+    LINES_BADGES.hints.find((l) => l.speaker === pupId) ||
+    { id: 'badge.hint.fallback', speaker: pupId, text: '继续加油哦！' };
+
   // 6 只狗狗排成一排；获得的彩色 + 光圈，没获得的灰色剪影 + 小锁 + 提示
   const row = el(`<div class="badges-row"></div>`);
   for (const pup of PUPS) {
     const isEarned = !!earned[pup.id];
-    const hint = BADGE_HINTS[pup.id] || '';
+    const hint = hintLine(pup.id).text;
     const card = el(`
       <button class="badge-card ${isEarned ? 'is-earned' : 'is-locked'}"
         data-testid="badge-${pup.id}"
@@ -413,14 +446,14 @@ function renderBadges() {
     // 点徽章：已获得 → 狗狗道谢；还没获得 → 读提示
     card.addEventListener('click', () => {
       play('tap');
-      say(isEarned ? BADGE_THANKS[pup.id] || `${pup.name}向你道谢！` : hint);
+      speakLine(isEarned ? thanksLine(pup.id) : hintLine(pup.id));
     });
     row.appendChild(card);
   }
   page.appendChild(row);
 
   setView(page);
-  say(`这是你的徽章墙！你已经有 ${total} 颗星星啦。`);
+  speakLine(LINES_BADGES.wallIntro);
 }
 
 // ============ 护眼提醒（任务卡 011） ============
@@ -460,7 +493,7 @@ document.body.appendChild(breakOverlay);
 breakOverlay.querySelector('[data-testid="btn-break-ok"]').addEventListener('click', () => {
   play('tap');
   breakOverlay.hidden = true;
-  say('休息好啦，我们继续冒险吧！');
+  speakLine(LINES_BREAK.rested);
   resetBreakTimer();
 });
 
@@ -480,7 +513,7 @@ function resetBreakTimer() {
       return;
     }
     breakOverlay.hidden = false;
-    say('玩了好久啦，休息一下眼睛，看看远处吧！');
+    speakLine(LINES_BREAK.timeUp);
   }, BREAK_SECONDS * 1000);
 }
 
@@ -516,4 +549,3 @@ function navigate(route) {
 
 // 启动：监听 hash 路由
 watch(navigate);
-
