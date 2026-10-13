@@ -481,6 +481,39 @@ async function scenarioVoiceIOS(browser, base) {
   check(p2.errors.length === 0 && p1.errors.length === 0, `没有 JS 错误或未处理的 Promise 拒绝${[...p1.errors, ...p2.errors].length ? '：' + [...p1.errors, ...p2.errors].slice(0, 3).join(' | ') : ''}`);
 }
 
+// iOS 上触屏的 pointerdown 不算用户激活，解锁播放会被拒；必须在后续 touchend/click 上继续尝试（任务卡 015b）
+async function scenarioVoiceUnlock(browser, base) {
+  console.log('[voice-unlock]');
+  const page = await newPage(browser, base);
+  await page.addInitScript(`
+    window.__blockPlay = true;
+    const realPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      if (window.__blockPlay) return Promise.reject(new DOMException('not a user activation', 'NotAllowedError'));
+      return realPlay.call(this);
+    };
+  `);
+  await page.goto(base + '/?unlock=1#/');
+  await page.waitForTimeout(1000);
+  // 第一次：触屏 pointerdown（iOS 不认），播放被拒
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true })));
+  await page.waitForTimeout(300);
+  const after1 = await page.evaluate(() => window.__pawAudioUnlocked === true);
+  check(!after1, '解锁播放被拒绝时，不能标记为已解锁（__pawAudioUnlocked 仍为 false）');
+  // 第二次：touchend（iOS 认），播放成功
+  await page.evaluate(() => { window.__blockPlay = false; window.dispatchEvent(new Event('touchend', { bubbles: true })); });
+  await page.waitForTimeout(500);
+  const after2 = await page.evaluate(() => window.__pawAudioUnlocked === true);
+  check(after2, '后续的 touchend 上再次尝试并解锁成功（__pawAudioUnlocked 为 true）');
+  // 第三次：再触摸不应重复解锁
+  const attemptsBefore = await page.evaluate(() => window.__pawUnlockAttempts || 0);
+  await page.evaluate(() => window.dispatchEvent(new Event('touchend', { bubbles: true })));
+  await page.waitForTimeout(300);
+  const attemptsAfter = await page.evaluate(() => window.__pawUnlockAttempts || 0);
+  check(attemptsBefore >= 2 && attemptsAfter === attemptsBefore, `解锁成功后不再重复尝试（尝试次数 ${attemptsBefore} → ${attemptsAfter}）`);
+  check(page.errors.length === 0, `没有 JS 错误${page.errors.length ? '：' + page.errors.slice(0, 3).join(' | ') : ''}`);
+}
+
 const args = process.argv.slice(2);
 if (!args.length) { console.error('用法: node tests/accept/smoke.mjs home | play:<game> | playall:<game> | route-arrows | badges'); process.exit(2); }
 const srv = await serve();
@@ -494,6 +527,7 @@ try {
     else if (a === 'voice-coverage') await scenarioVoiceCoverage(browser, base);
     else if (a === 'voice-play') await scenarioVoicePlay(browser, base);
     else if (a === 'voice-ios') await scenarioVoiceIOS(browser, base);
+    else if (a === 'voice-unlock') await scenarioVoiceUnlock(browser, base);
     else if (a.startsWith('play:')) await scenarioPlay(browser, base, a.slice(5), false);
     else if (a.startsWith('playall:')) await scenarioPlay(browser, base, a.slice(8), true);
     else { console.error(`未知场景 ${a}`); failures.push(a); }
