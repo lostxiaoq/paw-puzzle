@@ -7,9 +7,14 @@
 import { rotate, sameShape, rotationsNeeded, makeChoices } from './logic.js';
 import { LEVELS } from './levels.js';
 import { pupSVG } from '../../art/pups.js';
+import { LINES_ROTATE } from '../../voice/lines.js';
 
 // 格子之间的细缝（占格子边长的比例）
 const GAP = 0.1;
+
+// 转一转 / 找一找关卡的 id 顺序（和 levels.js 一致，也和 lines.js 里的台词顺序一致）
+const TURN_ORDER = ['rotate-1', 'rotate-2', 'rotate-3', 'rotate-4', 'rotate-5', 'rotate-10', 'rotate-12', 'rotate-14'];
+const CHOOSE_ORDER = ['rotate-6', 'rotate-7', 'rotate-8', 'rotate-9', 'rotate-11', 'rotate-13', 'rotate-15'];
 
 // ———— 小工具 ————
 function el(html) {
@@ -134,6 +139,9 @@ export function mount(container, ctx) {
   function mountTurn() {
     const target = rotate(level.shape, level.turns);
     const minClicks = rotationsNeeded(level.shape, target);
+    // 「修好啦！××装上啦！」——按关卡在转一转关卡里的序号取台词
+    const fixedIdx = TURN_ORDER.indexOf(level.id);
+    const fixedLine = LINES_ROTATE.fixedByLevel[fixedIdx] || LINES_ROTATE.fixedByLevel[0];
     let angle = 0; // 当前累计角度（度）。屏幕坐标 y 向下，正角 = 顺时针
     let clicks = 0; // 总点击数（含动画排队中的）
     let failCounted = false; // 「超次数算一次 fail」只记一次
@@ -241,7 +249,7 @@ export function mount(container, ctx) {
       pieceEl.style.transition = 'transform 0.6s cubic-bezier(0.5, 0, 0.3, 1), filter 0.6s ease';
       pieceEl.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
       pieceEl.style.filter = 'brightness(1.35) drop-shadow(0 0 12px rgba(255, 214, 79, 0.95))';
-      ctx.say(`零件修好啦！${level.name} 装上了！`);
+      ctx.say(fixedLine.text);
       await sleep(700); // 让孩子看清零件和影子重合
       if (!disposed) ctx.complete();
     }
@@ -269,7 +277,7 @@ export function mount(container, ctx) {
           ghost.style.transform = `rotate(${need}deg)`;
         });
       });
-      ctx.say('看影子，把它转成一样的吧');
+      ctx.say(LINES_ROTATE.hintTurn.text);
       later(clearHint, 1800);
     });
   }
@@ -280,6 +288,9 @@ export function mount(container, ctx) {
   function mountChoose() {
     topLabel.textContent = '哪个是它转过去的样子？';
     topPiece.innerHTML = pieceSVG(level.shape, { color: level.color });
+    // 「找对啦！××转好了！」——按关卡在找一找关卡里的序号取台词
+    const foundIdx = CHOOSE_ORDER.indexOf(level.id);
+    const foundLine = LINES_ROTATE.foundByLevel[foundIdx] || LINES_ROTATE.foundByLevel[0];
 
     const row = el('<div class="rot-choices"></div>');
     stage.appendChild(row);
@@ -306,7 +317,7 @@ export function mount(container, ctx) {
         finished = true;
         ctx.sfx('tap');
         card.classList.add('is-win');
-        ctx.say(`找对啦！这就是 ${level.name} 转过去的样子！`);
+        ctx.say(foundLine.text);
         await sleep(500);
         if (!disposed) ctx.complete();
         return;
@@ -318,7 +329,7 @@ export function mount(container, ctx) {
       later(() => {
         card.classList.add('is-dim'); // 翻面展示完再变灰，孩子看得更清楚
       }, 900);
-      later(() => ctx.say('这个是翻过面的，不是转出来的哦'), 350);
+      later(() => ctx.say(LINES_ROTATE.wrongFlip.text), 350);
     }
 
     // 提示：把一个（还没被点掉的）错误选项变灰
@@ -331,16 +342,14 @@ export function mount(container, ctx) {
       const pickOne = wrongIdx[Math.floor(Math.random() * wrongIdx.length)];
       pickOne.c.classList.add('is-dim');
       disabled.add(pickOne.i);
-      ctx.say('这个不对，看看别的');
+      ctx.say(LINES_ROTATE.hintDim.text);
     });
   }
 
   // ============ 进入关卡的说明 ============
-  // main.js 挂载后会先说「第 N 关开始啦」，等它说完再换成玩法说明
-  const instr = level.mode === 'turn'
-    ? '点转一转按钮，让零件和影子一模一样'
-    : '哪一个是这个零件转过去的样子？';
-  later(() => ctx.setInstruction(instr), 1800);
+  // main.js 挂载后会先说「这一关开始啦」，等它说完再换成玩法说明
+  const instr = level.mode === 'turn' ? LINES_ROTATE.introTurn : LINES_ROTATE.introChoose;
+  later(() => ctx.setInstruction(instr.text), 1800);
 
   // ============ 卸载 ============
   return () => {

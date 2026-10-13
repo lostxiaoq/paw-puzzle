@@ -7,6 +7,7 @@
 import { diffCells, givenHalf } from './logic.js';
 import { LEVELS } from './levels.js';
 import { pupSVG } from '../../art/pups.js';
+import { LINES_MIRROR } from '../../voice/lines.js';
 
 // 格子之间的缝（px）。CSS 里 .mirror-grid 的 gap 必须和它一致。
 const GAP = 6;
@@ -184,7 +185,9 @@ export function mount(container, ctx) {
       finished = true;
       ctx.sfx('tap');
       wrap.classList.add('is-win');
-      ctx.say(`你画出了一个 ${level.name}！`);
+      // 「你画出了一个 ××！」——每关一句，都在台词表里
+      const done = LINES_MIRROR.doneByLevel[ctx.levelIndex] || LINES_MIRROR.doneByLevel[0];
+      ctx.say(done.text);
       later(() => ctx.complete(), 750); // 稍等闪光播完再弹过关
       return;
     }
@@ -192,7 +195,7 @@ export function mount(container, ctx) {
     for (const { r, c } of wrong) cellEls[r * cols + c].classList.add('is-wrong');
     wrongTimer = later(clearWrong, 1000);
     ctx.fail(); // 外框播 oops 音效并计数
-    ctx.say('有几个格子不太对，再看看镜子');
+    ctx.say(LINES_MIRROR.wrong.text);
   }
 
   // ———— 提示（外框的 💡 按钮）————
@@ -214,13 +217,14 @@ export function mount(container, ctx) {
       // 全涂对了？那就闪「检查」按钮，提醒孩子按下去
       checkBtn.classList.add('is-hint');
       hintTimer = later(() => checkBtn.classList.remove('is-hint'), 1600);
+      ctx.say(LINES_MIRROR.hintCheck.text);
       return;
     }
     const pick = wrong[Math.floor(Math.random() * wrong.length)];
     const mate = mirrorOf(level, pick.r, pick.c);
     cellEls[pick.r * cols + pick.c].classList.add('is-hint');
     cellEls[mate.r * cols + mate.c].classList.add('is-hint');
-    ctx.say('看看一起发光的两个格子');
+    ctx.say(LINES_MIRROR.hintPair.text);
     hintTimer = later(clearHint, 1600); // 动画 0.5 秒 × 3 次
   }
   ctx.onHint(showHint);
@@ -256,11 +260,9 @@ export function mount(container, ctx) {
   const raf = requestAnimationFrame(layout);
 
   // ———— 进入关卡的说明 ————
-  // main.js 挂载后会先说「第 N 关开始啦」，等它说完再换成玩法说明
-  const instr = level.axis === 'vertical'
-    ? '天天的魔镜坏了一半，帮她把另一边涂成一模一样，像照镜子一样！'
-    : '这次镜子是横着的哦，上面和下面要一样';
-  later(() => ctx.setInstruction(instr), 1600);
+  // main.js 挂载后会先说「这一关开始啦」，等它说完再换成玩法说明
+  const instr = level.axis === 'vertical' ? LINES_MIRROR.introVertical : LINES_MIRROR.introHorizontal;
+  later(() => ctx.setInstruction(instr.text), 1600);
 
   // ———— 卸载 ————
   return () => {

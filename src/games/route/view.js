@@ -6,6 +6,7 @@
 import { runProgram, solve } from './logic.js';
 import { LEVELS } from './levels.js';
 import { pupSVG } from '../../art/pups.js';
+import { LINES_ROUTE } from '../../voice/lines.js';
 
 // ———— 小工具 ————
 function el(html) {
@@ -372,7 +373,7 @@ export function mount(container, ctx) {
     if (running || finished || disposed) return;
     if (!program.length) {
       ctx.sfx('tap');
-      ctx.say('先点箭头，排好路线再出发哦');
+      ctx.say(LINES_ROUTE.noCards.text);
       shakeOnce(goBtn);
       return;
     }
@@ -412,11 +413,11 @@ export function mount(container, ctx) {
       failedIndex = res.failedAt;
       renderSlots();    // 出错的那张卡片标红
       ctx.fail();       // 记一次失败（外框自己会播 oops 音效）
-      ctx.say('哎呀，前面过不去');
+      ctx.say(LINES_ROUTE.blocked.text);
     } else if (res.status === 'notReached') {
-      ctx.say('还差一点点，再想想');
+      ctx.say(LINES_ROUTE.notReached.text);
     } else if (res.status === 'missedBones') {
-      ctx.say('骨头还没吃完哦');
+      ctx.say(LINES_ROUTE.missedBones.text);
     }
 
     // 失败：回到起点重想，指令槽保留
@@ -458,7 +459,18 @@ export function mount(container, ctx) {
     }, 2800);
 
     // 2) 地图上用虚线画出正确路线的前 3 步
-    const pts = [level.start, ...sol.slice(0, 3)];
+    // sol 是指令数组（'up'/'left'…），先按指令推算出每一步的坐标
+    const DIR_STEP = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+    let hx = level.start.x;
+    let hy = level.start.y;
+    const pts = [{ x: hx, y: hy }];
+    for (const d of sol.slice(0, 3)) {
+      const step = DIR_STEP[d];
+      if (!step) break;
+      hx += step[0];
+      hy += step[1];
+      pts.push({ x: hx, y: hy });
+    }
     const line = pts.map((p) => `${p.x + 0.5},${p.y + 0.5}`).join(' ');
     const dots = pts
       .map((p) => `<circle cx="${p.x + 0.5}" cy="${p.y + 0.5}" r="0.16" fill="#1f5fbf"/>`)
@@ -469,7 +481,7 @@ export function mount(container, ctx) {
       + dots;
     hintSvg.classList.add('is-on');
     hintTimer = later(clearHint, 5200);
-    ctx.say('跟着蓝色的虚线走一走');
+    ctx.say(LINES_ROUTE.hint.text);
   }
   ctx.onHint(showHint);
 
@@ -496,11 +508,9 @@ export function mount(container, ctx) {
   const raf = requestAnimationFrame(layout);
 
   // ———— 进入关卡的说明 ————
-  // main.js 挂载后会先说「第 N 关开始啦」，等它说完再换成玩法说明
-  const instr = level.bones.length > 0
-    ? '先吃掉所有骨头，再去找小猫'
-    : '帮阿奇找到小猫！点箭头排好路线，再按出发';
-  later(() => ctx.setInstruction(instr), 1800);
+  // main.js 挂载后会先说「这一关开始啦」，等它说完再换成玩法说明
+  const instr = level.bones.length > 0 ? LINES_ROUTE.introBones : LINES_ROUTE.intro;
+  later(() => ctx.setInstruction(instr.text), 1800);
 
   // ———— 卸载 ————
   return () => {

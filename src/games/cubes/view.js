@@ -12,6 +12,7 @@
 import { countCubes, frontHeights, leftHeights, numberChoices } from './logic.js';
 import { LEVELS } from './levels.js';
 import { pupSVG } from '../../art/pups.js';
+import { LINES_CUBES } from '../../voice/lines.js';
 
 // 等轴测的两个基本量（SVG 用户单位，viewBox 会整体缩放）
 const W = 56; // 一个顶面菱形的横向全宽
@@ -321,7 +322,7 @@ export function mount(container, ctx) {
     locked.add(i);
     btn.classList.add('is-dim');
     btn.disabled = true;
-    later(() => ctx.say('再数一数，别忘了下面藏着的积木'), 300);
+    later(() => ctx.say(LINES_CUBES.wrongCount.text), 300);
   }
 
   // 答对（数一数）：积木从下到上依次闪一下，数出声「1、2、3……」
@@ -336,10 +337,12 @@ export function mount(container, ctx) {
           { duration: 230, delay: i * speed, easing: 'ease-in-out' },
         );
       }
-      later(() => ctx.say(String(i + 1)), i * speed); // 数出声
+      // 数出声：「1」「2」……台词表里有 1–16 全部数字
+      const num = LINES_CUBES.count[i] || LINES_CUBES.count[LINES_CUBES.count.length - 1];
+      later(() => ctx.say(num.text), i * speed);
     });
     const end = list.length * speed;
-    later(() => ctx.say(`一共 ${total} 块积木！`), end + 150);
+    later(() => ctx.say(LINES_CUBES.countDone.text), end + 150);
     later(() => {
       if (!disposed) ctx.complete();
     }, end + 950);
@@ -348,7 +351,7 @@ export function mount(container, ctx) {
   // 答对（从前面看）：亮出轮廓让孩子对照一下，再过关
   function celebrateFront() {
     if (outlineG) outlineG.classList.add('is-on');
-    ctx.say('看！从前面看就是这个样子！');
+    ctx.say(LINES_CUBES.frontDone.text);
     later(() => {
       if (!disposed) ctx.complete();
     }, 850);
@@ -359,7 +362,7 @@ export function mount(container, ctx) {
   function hintExplode() {
     if (hintBusy) return;
     hintBusy = true;
-    ctx.say('呼——把积木轻轻拆开，藏在下面的也要数哦');
+    ctx.say(LINES_CUBES.hintExplode.text);
     for (const [key, g] of cubeEls) {
       const [r, c, z] = key.split(',').map(Number);
       const above = h[r][c] - 1 - z; // 头顶上还压着几块
@@ -379,7 +382,7 @@ export function mount(container, ctx) {
   function hintOutline() {
     if (!outlineG) return;
     outlineG.classList.add('is-on');
-    ctx.say('看！黄色虚线就是从前面看到的轮廓');
+    ctx.say(LINES_CUBES.hintOutline.text);
     later(() => {
       if (!finished) outlineG.classList.remove('is-on');
     }, 2200);
@@ -392,11 +395,9 @@ export function mount(container, ctx) {
   });
 
   // ———— 进入关卡的说明 ————
-  // main.js 挂载后会先说「第 N 关开始啦」，等它说完再换成玩法说明
-  const instr = level.mode === 'count'
-    ? '小砾搭了一座积木，一共用了几块？'
-    : '站在小砾那边看，积木是什么样子的？';
-  later(() => ctx.setInstruction(instr), 1700);
+  // main.js 挂载后会先说「这一关开始啦」，等它说完再换成玩法说明
+  const instr = level.mode === 'count' ? LINES_CUBES.introCount : LINES_CUBES.introFront;
+  later(() => ctx.setInstruction(instr.text), 1700);
 
   // ———— 卸载 ————
   return () => {
