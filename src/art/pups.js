@@ -334,6 +334,26 @@ function earsBack(look, id) {
       `<path d="M58 53 Q50 38 44 32 Q46 44 56 52 Z" fill="${look.innerEar}"/>`
     );
   }
+  if (id === 'skye') {
+    // 天天（016b 修正）：两只长垂耳都画在脑袋「后面」（先耳后脸），
+    // 从头盔下沿两侧垂下来，露出来的只有头两侧的月牙形，
+    // 内边被脑袋整个盖住，绝不会碰到眼睛；末端是卷卷的浅色毛。
+    // ear(s)：s=1 画左耳，s=-1 画右耳（x 以 100 为轴镜像，左右对称）。
+    const ear = (s) => {
+      const x = (v) => 100 + s * (v - 100);
+      return (
+        `<path d="M${x(62)} 44 Q${x(30)} 50 ${x(22)} 82 Q${x(17)} 106 ${x(27)} 120 ` +
+        `Q${x(34)} 129 ${x(44)} 127 Q${x(52)} 125 ${x(52)} 116 ` +
+        `Q${x(45)} 108 ${x(46)} 98 Q${x(47)} 88 ${x(52)} 80 ` +
+        `Q${x(57)} 66 ${x(70)} 56 Q${x(70)} 48 ${x(62)} 44 Z" ` +
+        `fill="${look.fur}" stroke="${look.furDark}" stroke-width="2.5" stroke-linejoin="round"/>` +
+        // 耳尖两团卷卷的浅色毛（藏在脑袋外面的部分才看得见）
+        `<circle cx="${x(36)}" cy="121" r="5" fill="${look.muzzle}" stroke="${look.furDark}" stroke-width="1.6"/>` +
+        `<circle cx="${x(46)}" cy="124" r="4" fill="${look.muzzle}" stroke="${look.furDark}" stroke-width="1.6"/>`
+      );
+    };
+    return ear(1) + ear(-1);
+  }
   return '';
 }
 
@@ -348,18 +368,6 @@ function earsFront(look, id) {
       `<ellipse cx="154" cy="88" rx="14" ry="26" fill="${look.fur}" stroke="${look.furDark}" stroke-width="2.5"/>` +
       `<ellipse cx="156" cy="104" rx="6" ry="7" fill="${SPOT}"/></g>`
     );
-  }
-  if (id === 'skye') {
-    // 天天：长长下垂的耳朵，末端是卷卷的浅色毛（波浪边）
-    const ear = (m, cx, tipX) =>
-      `<g transform="rotate(${m} ${cx} 88)">` +
-      `<path d="M${cx - 4} 52 Q${cx - 26} 60 ${cx - 28} 94 Q${cx - 29} 116 ${cx - 14} 124 ` +
-      `Q${cx - 19} 114 ${cx - 10} 110 Q${cx - 18} 103 ${cx - 8} 99 Q${cx - 14} 91 ${cx - 4} 88 ` +
-      `Q${cx - 12} 68 ${cx - 4} 52 Z" fill="${look.innerEar}" stroke="${look.furDark}" stroke-width="2.5" stroke-linejoin="round"/>` +
-      // 耳尖的两团小卷毛
-      `<circle cx="${cx - 17}" cy="114" r="4.6" fill="${look.muzzle}" stroke="${look.furDark}" stroke-width="1.6"/>` +
-      `<circle cx="${cx - 8}" cy="119" r="4" fill="${look.muzzle}" stroke="${look.furDark}" stroke-width="1.6"/></g>`;
-    return ear(10, 60, 32) + ear(-10, 140, 168);
   }
   if (id === 'rubble') {
     // 小砾：小小的耳朵贴在头两侧往外翻
@@ -458,7 +466,27 @@ function hat(id, look) {
   return `<g transform="rotate(${tilt} 100 44)">${art}</g>`;
 }
 
-// ———— 帽子下面的毛 ————
+// ———— 帽子后面的毛（画在帽子之前：先画毛、再画帽子，基部被帽身盖住） ————
+function tuftBack(id, look) {
+  if (id !== 'rocky') return '';
+  // 灰灰（016b 修正）：2–3 撮圆润的乱毛从帽子的后上方、侧上方翘出来。
+  // 全部用曲线 C 命令，末端圆钝（不再是一排尖三角）；
+  // 颜色和头部灰色相同、深灰描边；额头保持干净。
+  const tuft = (d) =>
+    `<path d="${d}" fill="${look.fur}" stroke="${look.furDark}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return (
+    `<g transform="rotate(${HAT_TILT.rocky} 100 44)">` +
+    // 左侧上方翘出的一撮（最大）
+    tuft('M66 30 C58 28 48 22 46 12 C45 5 52 2 57 6 C61 9 61 16 66 22 Z') +
+    // 顶上偏左的一撮
+    tuft('M86 20 C79 15 74 9 76 4 C78 0.5 84 0.5 86 4 C88 7 87 13 90 18 Z') +
+    // 顶上偏右的一撮
+    tuft('M112 18 C119 14 125 9 123 4 C121 0.5 115 1 114 5 C113 9 115 13 108 18 Z') +
+    '</g>'
+  );
+}
+
+// ———— 帽子上层的小装饰（画在帽子之后） ————
 function tuft(id, look) {
   if (id === 'skye') {
     // 天天：头顶一撮翘起的刘海（从头盔前面翘出来）
@@ -467,13 +495,6 @@ function tuft(id, look) {
       `<path d="M96 14 Q89 6 95 1 Q100 6 99 13 Z" fill="${look.fur}" stroke="${look.furDark}" stroke-width="2" stroke-linejoin="round"/>` +
       `<path d="M100 13 Q100 2 107 1 Q108 8 102 14 Z" fill="${look.fur}" stroke="${look.furDark}" stroke-width="2" stroke-linejoin="round"/>` +
       `</g>`
-    );
-  }
-  if (id === 'rocky') {
-    // 灰灰：一撮乱糟糟的毛从帽檐下面翘出来
-    return (
-      '<path d="M84 52 L90 66 L96 53 L102 68 L108 53 L114 66 L118 51 Z" ' +
-      `fill="${look.fur}" stroke="${look.furDark}" stroke-width="2" stroke-linejoin="round"/>`
     );
   }
   return '';
@@ -497,6 +518,7 @@ export function pupSVG(id, { size = 120, mood = 'normal' } = {}) {
     eyes(m, look),
     mouth(m, id, look),
     earsFront(look, id),
+    tuftBack(id, look),
     hat(id, look),
     tuft(id, look),
     pupTag(id, look),
