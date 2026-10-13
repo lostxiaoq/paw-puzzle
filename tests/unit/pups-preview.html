@@ -16,9 +16,9 @@
   h1 { text-align: center; color: #7a4b8f; font-size: 28px; margin-bottom: 20px; }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(680px, 1fr));
     gap: 20px;
-    max-width: 1200px;
+    max-width: 1440px;
     margin: 0 auto;
   }
   .card {
@@ -30,9 +30,9 @@
   }
   .card h2 { font-size: 20px; margin-bottom: 4px; }
   .card .role { font-size: 14px; color: #9b8aa5; margin-bottom: 10px; }
-  .moods { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-  .moods figure { width: 96px; }
-  .moods figcaption { font-size: 12px; color: #8d8d8d; margin-top: 4px; }
+  .moods { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .moods figure { width: 200px; }
+  .moods figcaption { font-size: 13px; color: #8d8d8d; margin-top: 4px; }
   .error {
     max-width: 600px; margin: 40px auto; background: #fff0f0;
     border: 2px solid #d62828; border-radius: 16px; padding: 20px;
@@ -63,8 +63,8 @@
           <div class="moods">
             ${MOODS.map(([mood, label]) => `
               <figure>
-                <div style="width: 96px; height: 96px; margin: 0 auto">
-                  ${pupSVG(p.id, { size: 96, mood })}
+                <div style="width: 200px; height: 200px; margin: 0 auto">
+                  ${pupSVG(p.id, { size: 200, mood })}
                 </div>
                 <figcaption>${label}</figcaption>
               </figure>`).join('')}
