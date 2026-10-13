@@ -1,4 +1,4 @@
-// 语音（任务卡 002 + 014 + 015）：优先播放提前生成好的 mp3，找不到再退回系统语音。
+// 语音（任务卡 002 + 014 + 015 + 015b）：优先播放提前生成好的 mp3，找不到再退回系统语音。
 //
 // 怎么选声音：
 //   1. 启动时在后台 Worker 里 fetch audio/voice/manifest.json（拿不到 / 格式不对就当空清单，
@@ -7,12 +7,16 @@
 //   2. 说话时清单里有「speaker|文本」→ 播 audio/voice/<文件名>；没有 → speechSynthesis。
 //   3. 清单还在加载时说的话先排队，加载完（最多等 1.5 秒）再决定用哪种方式。
 //
+// 任务卡 015b（iPad Safari 解锁修正）：
+//   - HTML 规范里，触屏（pointerType 为 touch/pen）的 pointerdown 不是「用户激活」，
+//     iOS Safari 会拒绝在里面发起的 play()；真正算数的是 pointerup / touchend / click / keydown。
+//   - 所以：只有解锁播放的 Promise 真正 resolve 了，才算解锁成功（置 unlocked 并把
+//     window.__pawAudioUnlocked 标成 true）；被拒 / 抛错就保持未解锁，等下一次手势再试。
+//   - 每次真正发起解锁尝试时 window.__pawUnlockAttempts 加 1；成功后就不再监听、不再尝试。
+//
 // 任务卡 015（iPad Safari 可靠播放）：
 //   - 全站只创建一个 <audio> 元素（模块加载时创建一次），之后每句话只改 src 再 play()。
 //     iOS Safari 对「不在用户手势里发起的播放」限制很严，单元素复用是最常用的稳法。
-//   - 第一次 pointerdown / touchend / keydown（once + capture）时，在这个事件处理函数里
-//     同步地 play() 一段极短的静音 wav（data URI，src 已预先挂好），把「播放许可」拿到手；
-//     同时对 speechSynthesis speak 一个空 utterance，解锁系统语音。解锁监听只挂一次。
 //   - play() 返回的 Promise 被拒绝（NotAllowedError 等）→ 改用 speechSynthesis 读这句话，
 //     保证孩子至少能听到。__pawSaid 里这句仍记 source='file'（清单命中），
 //     另外把 window.__pawAudioFallbacks 计数 +1。绝不留下未处理的 Promise 拒绝。
@@ -21,6 +25,8 @@
 //   window.__pawSaid            每次 say 追加 { speaker, text, source: 'file' | 'tts' }
 //   window.__pawAudioPlays      每次调用 audio.play() 加 1
 //   window.__pawAudioFallbacks  mp3 播放被拒退回系统语音的次数
+//   window.__pawAudioUnlocked   解锁播放的 Promise 成功后为 true
+//   window.__pawUnlockAttempts  发起解锁尝试的次数（成功后不再增加）
 
 const VOICE_DIR = 'audio/voice/';
 const MANIFEST_URL = VOICE_DIR + 'manifest.json';
@@ -221,34 +227,86 @@ function speakWithTTS(text) {
 
 // ———— mp3 播放（单元素复用） ————
 
-// 解锁是否已完成（第一次用户手势时置 true）
+// 解锁是否已完成（解锁播放的 Promise 真正 resolve 后才置 true —— 015b 的关键修正）
 let unlocked = false;
+// 系统语音的空 utterance 解锁：在激活事件里只做一次，之后不再重复
+let ttsUnlockDone = false;
 
-// 首次触摸解锁：监听 pointerdown / touchend / keydown，第一次触发时在事件处理函数里
-// 同步 play() 静音 wav + speak 空 utterance。之后从定时器里发起的播放也被允许。
+// 解锁用的激活事件。鼠标的 pointerdown / pointerup 是用户激活；触屏的 pointerdown
+// 在 iOS 上会被拒（不算激活），但这次失败的尝试会被计数并保持未解锁，紧随其后的
+// pointerup / touchend / click 会马上重试 —— 验收 voice-unlock 模拟的正是这个流程。
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
+
+// 摘掉全部解锁监听（成功后调用，之后不再尝试）
+function removeUnlockListeners() {
+  try {
+    for (const type of UNLOCK_EVENTS) window.removeEventListener(type, unlockAudio, true);
+  } catch {
+    /* 忽略 */
+  }
+}
+
+// 每个解锁监听都走这里：解锁系统语音（只做一次）+ 发起一次解锁播放尝试。
 function unlockAudio() {
   if (unlocked) return;
-  unlocked = true;
-  const a = ensureAudioEl();
-  if (a) {
-    try {
-      playIsUnlock = true;
-      const seq = ++playSeq;
-      const played = a.play();
-      if (played && typeof played.then === 'function') {
-        played.catch(() => {
-          // 桌面 Chrome 无限制时这里不会 reject；真被拒（比如还没挂上静音、或仍被拦）
-          // 也不需要退 TTS —— 静音本来就没人听，保持安静即可。
-          if (playIsUnlock && seq === playSeq) playIsUnlock = false;
-        });
-      } else if (playIsUnlock && seq === playSeq) {
-        playIsUnlock = false;
-      }
-    } catch {
-      playIsUnlock = false; // 播放发起失败不影响解锁系统语音
-    }
+  // 空 utterance 解锁系统语音：必须在激活事件处理函数里同步发起，只做一次
+  if (!ttsUnlockDone) {
+    ttsUnlockDone = true;
+    speakWithTTS('');
   }
-  speakWithTTS(''); // 空 utterance：解锁系统语音，不出声
+  const a = ensureAudioEl();
+  try {
+    window.__pawUnlockAttempts = (window.__pawUnlockAttempts || 0) + 1;
+  } catch { /* 埋点出错不影响解锁 */ }
+  if (!a) return; // 连 audio 元素都拿不到：这轮没法试，等下一个手势
+  try {
+    playIsUnlock = true;
+    const seq = ++playSeq;
+    const played = a.play();
+    if (played && typeof played.then === 'function') {
+      played.then(
+        () => {
+          // 播放许可真的拿到手了 → 现在才承认解锁成功
+          if (playIsUnlock && seq === playSeq) playIsUnlock = false;
+          unlocked = true;
+          try {
+            window.__pawAudioUnlocked = true;
+          } catch { /* 埋点出错不影响解锁 */ }
+          removeUnlockListeners();
+        },
+        () => {
+          // 被浏览器拒绝（比如触屏 pointerdown 不算用户激活）：保持未解锁，下次手势再试
+          if (playIsUnlock && seq === playSeq) playIsUnlock = false;
+        }
+      );
+    } else {
+      // 老浏览器 play() 不返回 Promise：发起即成功
+      playIsUnlock = false;
+      unlocked = true;
+      try {
+        window.__pawAudioUnlocked = true;
+      } catch { /* 埋点出错不影响解锁 */ }
+      removeUnlockListeners();
+    }
+  } catch {
+    playIsUnlock = false; // play() 同步抛错：保持未解锁，等下一个手势再试
+  }
+}
+
+// 触屏的 pointerdown 不算用户激活（iOS 会拒绝在里面发起的播放）；鼠标的 pointerdown
+// 是激活事件。都放进 UNLOCK_EVENTS 尝试没关系：触屏的这次会被拒并计数、保持未解锁，
+// 紧随其后的 pointerup / touchend 会重试 —— 成功的标志只看 Promise 是否 resolve。
+// 唯一的例外：已经解锁（或本轮成功后）绝不再尝试，由 unlockAudio 入口的 unlocked 判断兜住。
+
+// 挂解锁监听：不用 once —— 失败了监听必须还留在原地，下一次手势才能重试；
+// 成功后由 unlockAudio 自己 removeEventListener。
+function addUnlockListeners() {
+  if (typeof window === 'undefined') return;
+  try {
+    for (const type of UNLOCK_EVENTS) window.addEventListener(type, unlockAudio, { capture: true });
+  } catch {
+    /* 极老浏览器不支持这些事件：正常说话路径不受影响 */
+  }
 }
 
 // 用唯一的 audio 元素播一句话的 mp3。
@@ -344,13 +402,10 @@ export function setSpeaker(pupId) {
 // ———— 启动：加载清单 + 挂解锁监听 ————
 if (typeof window !== 'undefined') {
   startManifestLoad();
-  // 任务卡 015：第一次用户手势时解锁音频（capture 保证任何组件都拦不住这个事件；
-  // once 保证只解一次锁）。keydown 也算，照顾外接键盘 / 无触摸设备。
-  if (typeof PointerEvent !== 'undefined') {
-    window.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
-  }
-  window.addEventListener('touchend', unlockAudio, { once: true, capture: true });
-  window.addEventListener('keydown', unlockAudio, { once: true, capture: true });
+  // 任务卡 015b：用户手势时解锁音频。监听 pointerup / touchend / click / keydown
+  // （触屏的 pointerdown 不算激活事件，只有 mouse 的才试）；不用 once，
+  // 失败后监听留在原地等下一次手势，成功后自己 removeEventListener。
+  addUnlockListeners();
   // 页面加载后声音列表可能才到位，监听一下并刷新缓存
   if ('speechSynthesis' in window) {
     try {
